@@ -1,0 +1,14 @@
+from fastapi import APIRouter
+from schemas.irrigation import IrrigationRequest, IrrigationResponse
+from services.irrigation_service import calculate_irrigation
+
+router = APIRouter()
+
+
+@router.post("/calculate", response_model=IrrigationResponse, summary="Calculate smart irrigation requirements")
+async def irrigation_calculate(req: IrrigationRequest) -> IrrigationResponse:
+    """
+    Accepts crop, soil, and weather inputs.
+    Returns computed water requirements and AI-generated irrigation schedule.
+    """
+    return await calculate_irrigation(req)
