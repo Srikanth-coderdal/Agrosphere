@@ -1,20 +1,17 @@
 import json
-import base64
 import logging
 from typing import Optional
 
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-# ── Gemini client (instantiated once at module load) ──────────────────────────
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-MODEL_ID = "gemini-2.0-flash"
+# ── Configure Legacy Gemini SDK ───────────────────────────────────────────────
+genai.configure(api_key=settings.GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-3.6-flash')
 
 _SYSTEM_PROMPT = """\
 You are an expert agricultural plant pathologist AI.
@@ -38,60 +35,66 @@ Rules:
 - confidence_score must be a decimal between 0.0 and 1.0.
 """
 
+_SYSTEM_PROMPT_TA = """\
+நீங்கள் ஒரு நிபுணர் வேளாண் தாவர நோய் கண்டறிதல் AI.
+கொடுக்கப்பட்ட பயிர் இலை புகைப்படத்தை ஆய்வு செய்து, கீழே உள்ள EXACT keys-களுடன் ஒரே ஒரு JSON object-ஐ மட்டும் திருப்பி அளிக்கவும்.
+மதிப்புகள் (values) தமிழில் (தமிழ்நாடு விவசாயர்களுக்கு எளிதாக புரியும் விதத்தில்) இருக்க வேண்டும்.
 
-def _build_prompt(farmer_comment: Optional[str]) -> str:
+{
+  "disease_name": "<string: நோயின் பெயர் அல்லது 'Healthy'>",
+  "status": "<one of: 'Healthy' | 'Diseased' | 'Unclear'>",
+  "confidence_score": <float between 0.0 and 1.0>,
+  "visible_symptoms": ["<string>", ...],
+  "organic_remedies": ["<string>", ...],
+  "chemical_remedies": ["<string>", ...],
+  "preventive_measures": ["<string>", ...]
+}
+
+Rules:
+- Output ONLY the raw JSON object. No markdown, no code fences, no commentary.
+- status மதிப்பு கண்டிப்பாக 'Healthy' | 'Diseased' | 'Unclear' இவற்றில் ஒன்றாகவே இருக்க வேண்டும்.
+- படம் தெளிவில்லையெனில் அல்லது பயிர் இலை அல்ல எனில் status ஐ "Unclear" என்று அமைக்கவும்.
+- அனைத்து list புலங்களும் arrays ஆக இருக்க வேண்டும் (empty [] அனுமதி).
+- confidence_score must be a decimal between 0.0 and 1.0.
+"""
+
+
+def _build_prompt(farmer_comment: Optional[str], language: str) -> str:
+    system_prompt = _SYSTEM_PROMPT_TA if (language or "").lower() == "ta" else _SYSTEM_PROMPT
     if farmer_comment:
         return (
+            f"{system_prompt}\n\n"
             f"Farmer's observation: \"{farmer_comment}\"\n\n"
             "Use this context alongside the image to refine your diagnosis."
         )
-    return "Diagnose the crop disease from the image alone."
+    return f"{system_prompt}\n\nDiagnose the crop disease from the image alone."
 
 
 async def analyze_crop_image(
     image_bytes: bytes,
     farmer_comment: Optional[str] = None,
     mime_type: str = "image/jpeg",
+    language: str = "en",
 ) -> dict:
     """
     Send a crop leaf image to Gemini Vision and return a structured
     diagnosis dict matching the ScanResponse schema.
-
-    Args:
-        image_bytes:    Raw bytes of the uploaded image.
-        farmer_comment: Optional textual note from the farmer.
-        mime_type:      MIME type of the image (default: image/jpeg).
-
-    Returns:
-        dict conforming to ScanResponse fields.
-
-    Raises:
-        HTTPException 422: If Gemini returns invalid / non-parseable JSON.
-        HTTPException 502: If the Gemini API call itself fails.
     """
-    user_text = _build_prompt(farmer_comment)
+    user_text = _build_prompt(farmer_comment, language)
 
-    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-    text_part = types.Part.from_text(text=user_text)
-
-    contents = [
-        types.Content(
-            role="user",
-            parts=[image_part, text_part],
-        )
-    ]
-
-    config = types.GenerateContentConfig(
-        system_instruction=_SYSTEM_PROMPT,
-        temperature=0.2,          # low temperature → deterministic structured output
-        response_mime_type="application/json",
-    )
+    image_part = {
+        "mime_type": mime_type,
+        "data": image_bytes
+    }
 
     try:
-        response = await _client.aio.models.generate_content(
-            model=MODEL_ID,
-            contents=contents,
-            config=config,
+        # Call legacy SDK asynchronously
+        response = await model.generate_content_async(
+            [image_part, user_text],
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.2,
+            }
         )
     except Exception as exc:
         logger.exception("Gemini API call failed: %s", exc)

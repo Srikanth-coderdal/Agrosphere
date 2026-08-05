@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class ScanRequest(BaseModel):
     """Image bytes are sent via multipart/form-data; only optional comment here."""
     farmer_comment: Optional[str] = Field(default=None, description="Farmer's observation about the crop.")
+    language: str = Field(default="en", description="Response language code (e.g. 'en' or 'ta').")
 
 
 class ScanResponse(BaseModel):

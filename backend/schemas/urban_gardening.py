@@ -7,6 +7,7 @@ class UrbanGardeningRequest(BaseModel):
     space_type: Literal["balcony", "indoor", "rooftop"] = Field(..., description="Available gardening space type.")
     sunlight_hours: float = Field(..., ge=0.0, le=24.0, description="Average daily sunlight hours the space receives.")
     container_size: float = Field(..., gt=0, description="Container/pot volume in liters.")
+    language: str = Field(default="en", description="Response language code (e.g. 'en' or 'ta').")
 
 
 class UrbanGardeningResponse(BaseModel):

@@ -67,6 +67,7 @@ async def health_check():
 async def scan_crop(
     image: UploadFile = File(..., description="Crop leaf image (.jpg, .jpeg, .png, .webp)"),
     farmer_comment: Optional[str] = Form(None, description="Optional farmer observation text"),
+    language: str = Form("en", description="Response language code (e.g. 'en' or 'ta')."),
 ):
     content_type = (image.content_type or "").lower()
     filename = image.filename or ""
@@ -88,5 +89,6 @@ async def scan_crop(
         image_bytes=image_bytes,
         farmer_comment=farmer_comment,
         mime_type=mime_type,
+        language=language,
     )
     return ScanResponse(**result)

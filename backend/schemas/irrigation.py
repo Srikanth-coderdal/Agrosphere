@@ -10,6 +10,7 @@ class IrrigationRequest(BaseModel):
     soil_moisture_percentage: float = Field(..., ge=0.0, le=100.0, description="Current soil moisture as a percentage.")
     temperature_celsius: Optional[float] = Field(default=28.0, description="Ambient temperature in Celsius.")
     rainfall_probability_percent: Optional[float] = Field(default=10.0, ge=0.0, le=100.0, description="Probability of rainfall (%).")
+    language: str = Field(default="en", description="Response language code (e.g. 'en' or 'ta').")
 
 
 class IrrigationResponse(BaseModel):

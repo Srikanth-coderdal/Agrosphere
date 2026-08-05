@@ -3,16 +3,16 @@ import logging
 from typing import Optional
 
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 from config import settings
 from schemas.irrigation import IrrigationRequest, IrrigationResponse
 
 logger = logging.getLogger(__name__)
 
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-MODEL_ID = "gemini-2.0-flash"
+# ── Configure Legacy Gemini SDK ───────────────────────────────────────────────
+genai.configure(api_key=settings.GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-3.6-flash')
 
 # ── Crop base ET (mm/day) by growth stage ─────────────────────────────────────
 # Source: FAO-56 Kc values (simplified)
@@ -50,14 +50,6 @@ def _classify_et(et_mm: float) -> str:
 def _compute_water_liters(req: IrrigationRequest) -> tuple[float, float]:
     """
     Returns (water_required_liters, et_mm_per_day).
-
-    Formula:
-      ETo  = f(temperature)
-      Kc   = crop coefficient for (crop, stage)
-      ETc  = ETo * Kc                          [mm/day consumptive use]
-      Deficit = ETc * (1 - soil_moisture/100)  [moisture already present]
-      Soil retention factor reduces gross need for clay vs sandy soils
-      Volume = Deficit * field_size_ha * 10000 [m² per ha] / retention_factor
     """
     crop_key = req.crop_type.lower()
     stage_key = req.growth_stage.lower()
@@ -79,7 +71,6 @@ def _compute_water_liters(req: IrrigationRequest) -> tuple[float, float]:
     retention = _SOIL_RETENTION.get(soil_key, 0.65)
 
     # Convert mm deficit → liters over field area, adjusted for retention
-    # 1 mm over 1 m² = 1 litre; 1 ha = 10,000 m²
     area_m2 = req.field_size_hectares * 10_000
     gross_water_liters = (deficit_mm / retention) * area_m2
 
@@ -100,9 +91,26 @@ Rules:
 - actionable_tips must have 3-5 items tailored to the inputs.
 """
 
+_GEMINI_SYSTEM_TA = """\
+நீங்கள் ஒரு துல்லிய வேளாண் நீர்ப்பாசன நிபுணர் AI.
+கொடுக்கப்பட்ட பயிர் மற்றும் வயல் தரவுகளை வைத்து, கீழே உள்ள EXACT keys-களுடன் ஒரே ஒரு JSON object-ஐ திருப்புங்கள்:
+{
+  "recommended_schedule": "<string: உதாரணம் '18,000 லிட்டர் நீரை காலை 06:00 மணிக்கு ஒவ்வொரு 2 நாட்களும் பாசனம் செய்யவும்'>",
+  "weather_summary": "<string: 2–3 வாக்கியங்களில் நிலைமைகள் மற்றும் அவற்றின் நீர்ப்பாசன தாக்கம்>",
+  "actionable_tips": ["<tip 1>", "<tip 2>", "<tip 3>", "<tip 4>"]
+}
+விதிகள்:
+- Output ONLY raw JSON. markdown இல்லை, code fences இல்லை.
+- recommended_schedule இல் அளவு (volume), நாளின் நேரம் (time of day), மற்றும் அடுத்தடுத்து வரும் frequency இருக்க வேண்டும்.
+- actionable_tips இல் உள்ளீடுகளுக்கு ஏற்ப 3–5 குறிப்புகள் தமிழில் இருக்க வேண்டும்.
+"""
+
 
 async def _get_gemini_advice(req: IrrigationRequest, water_liters: float, et_index: str) -> dict:
+    system_prompt = _GEMINI_SYSTEM_TA if (req.language or "").lower() == "ta" else _GEMINI_SYSTEM
     prompt = f"""
+{system_prompt}
+
 Crop: {req.crop_type}
 Growth Stage: {req.growth_stage}
 Soil Type: {req.soil_type}
@@ -113,15 +121,13 @@ Rainfall Probability: {req.rainfall_probability_percent}%
 Calculated Water Requirement: {water_liters:,.0f} liters/day
 Evapotranspiration Index: {et_index}
 """
-    contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
-    config = types.GenerateContentConfig(
-        system_instruction=_GEMINI_SYSTEM,
-        temperature=0.3,
-        response_mime_type="application/json",
-    )
     try:
-        response = await _client.aio.models.generate_content(
-            model=MODEL_ID, contents=contents, config=config
+        response = await model.generate_content_async(
+            prompt,
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.3,
+            }
         )
     except Exception as exc:
         logger.exception("Gemini irrigation advice call failed: %s", exc)
