@@ -36,27 +36,81 @@
 
 ---
 
-## ✨ Core Features
+## ⚡ Core Intelligence Stack
 
-- **🔬 Crop Disease Scanner**
-  * 📸 **Snap → diagnose:** Instant plant leaf diagnosis powered by Gemini Vision.
-  * 🗣️ **Farmer commentary:** Optional context input to increase diagnostic accuracy.
-  * 🌐 **Bilingual replies:** Supports multi-language output (English & Tamil).
+<p align="left">
+  <em>Click on any module below to inspect system capabilities, AI models, and telemetry flows.</em>
+</p>
 
-- **💧 Smart Irrigation Advisor**
-  * 📡 **Telemetry-aware:** Real-time integration of soil type, crop stage, and climate inputs.
-  * ⏱️ **Schedule optimization:** AI-tuned, stage-specific watering schedules.
-  * 🌿 **Resource conservation:** Actionable recommendations that save water.
+<details open>
+<summary><strong>🔬 Module 01: Crop Disease Scanner</strong> &nbsp;<code>[Gemini Vision]</code> <code>[Multimodal]</code></summary>
+<br />
 
-- **📊 Yield Estimator**
-  * 🧮 **Harvest forecasting:** Calculates expected tonnage based on field size, crop, and inputs.
-  * 📈 **Driver analysis:** Identifies key yield drivers and nutrient optimization strategies.
-  * 🎯 **Seasonal planning:** Data-backed insights before planting begins.
+| Field | Capability |
+| :--- | :--- |
+| **Primary Model** | `Gemini 1.5 Pro / Vision` |
+| **Input Pipeline** | Leaf Micro-imagery + Voice/Text Context |
+| **Localization** | Multi-Language Inference (English & Tamil) |
 
-- **🏙️ Urban Gardening Guide**
-  * 🪴 **City-scale cultivation:** Customized playbooks for balconies and small urban spaces.
-  * 🧠 **AI plant coach:** Species-specific and space-aware care tips.
-  * 🔐 **Secure access:** Integrated authentication for gardener profiles.
+- 👁️ **Visual Pathogen Engine:** Scans plant leaf imagery in milliseconds to flag early-stage blights, rusts, and nutrient deficiencies.
+- 🎙️ **Farmer Voice Overlay:** Accepts optional regional audio or text commentary to fine-tune diagnostic confidence scores.
+- ⚡ **Treatment Blueprint:** Outputs actionable, eco-friendly remediation steps with localized crop management tips.
+
+</details>
+
+<br />
+
+<details open>
+<summary><strong>💧 Module 02: Smart Irrigation Advisor</strong> &nbsp;<code>[Telemetry Engine]</code> <code>[Hydration Logic]</code></summary>
+<br />
+
+| Field | Capability |
+| :--- | :--- |
+| **Telemetry Ingestion**| Soil Moisture, Crop Growth Stage, Climate Data |
+| **Optimization Target**| Evapotranspiration Minimization |
+| **Output Type** | Precision Volumetric & Timed Dosing |
+
+- 📡 **Real-Time Telemetry Matrix:** Dynamically processes soil composition, humidity metrics, and local weather patterns.
+- ⏱️ **AI Hydro-Scheduling:** Computes high-efficiency watering windows designed to eliminate surface runoff and evaporation.
+- 🌿 **Water Thrift Protocol:** Maximizes Water-Use Efficiency (WUE) without stress-inducing crop yields.
+
+</details>
+
+<br />
+
+<details open>
+<summary><strong>📊 Module 03: Yield Prediction Matrix</strong> &nbsp;<code>[Agro-Analytics]</code> <code>[Predictive ML]</code></summary>
+<br />
+
+| Field | Capability |
+| :--- | :--- |
+| **Forecast Metric** | Tonnage / Acreage Projections |
+| **Analytics Engine** | Multi-Factor Growth Driver Mapping |
+| **Use Case** | Pre-Season ROI & Resource Allocation |
+
+- 🧮 **Harvest Simulator:** Calculates estimated crop output based on acreage, seed variant, and applied fertigation schedules.
+- 📈 **Growth Driver Profiler:** Highlights critical yield bottlenecks and delivers stage-by-stage nutrient directives.
+- 🎯 **Seasonal Simulation:** Enables farmers to stress-test resource allocation models prior to field planting.
+
+</details>
+
+<br />
+
+<details open>
+<summary><strong>🏙️ Module 04: Urban Gardening Hub</strong> &nbsp;<code>[Micro-Farming]</code> <code>[Space-Aware]</code></summary>
+<br />
+
+| Field | Capability |
+| :--- | :--- |
+| **Environment Focus**| Balconies, Vertical Racks & Small Plots |
+| **Copilot Mode** | Adaptive Micro-Climate Recommendations |
+| **Security Layer** | JWT / Session-Based User Profiling |
+
+- 🪴 **Micro-Footprint Tactical Guides:** Tailored agricultural playbooks designed specifically for high-density, urban spaces.
+- 🧠 **AI Plant Copilot:** Tailored care strategies optimized for specific pot volumes, direct sunlight hours, and container flora.
+- 🔐 **Zero-Trust Access:** Secure session management and state persistence for urban growers and community garden managers.
+
+</details>
 
 ---
 
