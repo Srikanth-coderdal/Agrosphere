@@ -36,72 +36,27 @@
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
-> Drop your UI demo loop GIFs into the cells below — the grid is ready for launch day.
+- **🔬 Crop Disease Scanner**
+  * 📸 **Snap → diagnose:** Instant plant leaf diagnosis powered by Gemini Vision.
+  * 🗣️ **Farmer commentary:** Optional context input to increase diagnostic accuracy.
+  * 🌐 **Bilingual replies:** Supports multi-language output (English & Tamil).
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <!-- GIF slot: Disease Scan demo -->
-      <img src="https://placehold.co/480x270/1B4332/52B788?text=Disease+Scan+Demo&font=montserrat" alt="Disease Scan demo placeholder" width="100%" />
-      <br />
-      <strong>🔬 Crop Disease Scanner</strong>
-      <br /><br />
-      <div align="left">
+- **💧 Smart Irrigation Advisor**
+  * 📡 **Telemetry-aware:** Real-time integration of soil type, crop stage, and climate inputs.
+  * ⏱️ **Schedule optimization:** AI-tuned, stage-specific watering schedules.
+  * 🌿 **Resource conservation:** Actionable recommendations that save water.
 
-- 📸 **Snap → diagnose** — leaf images in, Gemini vision out
-- 🗣️ **Farmer commentary** — optional context boosts accuracy
-- 🌐 **Bilingual replies** — English & Tamil response modes
+- **📊 Yield Estimator**
+  * 🧮 **Harvest forecasting:** Calculates expected tonnage based on field size, crop, and inputs.
+  * 📈 **Driver analysis:** Identifies key yield drivers and nutrient optimization strategies.
+  * 🎯 **Seasonal planning:** Data-backed insights before planting begins.
 
-      </div>
-    </td>
-    <td align="center" width="50%">
-      <!-- GIF slot: Irrigation demo -->
-      <img src="https://placehold.co/480x270/1B4332/74C69D?text=Irrigation+Demo&font=montserrat" alt="Smart Irrigation demo placeholder" width="100%" />
-      <br />
-      <strong>💧 Smart Irrigation</strong>
-      <br /><br />
-      <div align="left">
-
-- 📡 **Telemetry-aware** — soil, crop & climate inputs
-- ⏱️ **Schedule smart** — AI-tuned watering windows
-- 🌿 **Water thrift** — recommendations that conserve
-
-      </div>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <!-- GIF slot: Yield Estimator demo -->
-      <img src="https://placehold.co/480x270/1B4332/95D5B2?text=Yield+Estimator+Demo&font=montserrat" alt="Yield Estimator demo placeholder" width="100%" />
-      <br />
-      <strong>📊 Yield Estimator</strong>
-      <br /><br />
-      <div align="left">
-
-- 🧮 **Predict harvest** — acreage, crop & inputs → forecast
-- 📈 **Optimize inputs** — fertilizer & irrigation signals
-- 🎯 **Plan seasons** — data before you plant
-
-      </div>
-    </td>
-    <td align="center" width="50%">
-      <!-- GIF slot: Urban Gardening demo -->
-      <img src="https://placehold.co/480x270/1B4332/B7E4C7?text=Urban+Gardening+Demo&font=montserrat" alt="Urban Gardening demo placeholder" width="100%" />
-      <br />
-      <strong>🏙️ Urban Gardening</strong>
-      <br /><br />
-      <div align="left">
-
-- 🪴 **City-scale grow** — balcony & rooftop playbooks
-- 🧠 **AI plant coach** — species & space-aware tips
-- 🔐 **Auth-ready** — secure farmer & gardener sessions
-
-      </div>
-    </td>
-  </tr>
-</table>
+- **🏙️ Urban Gardening Guide**
+  * 🪴 **City-scale cultivation:** Customized playbooks for balconies and small urban spaces.
+  * 🧠 **AI plant coach:** Species-specific and space-aware care tips.
+  * 🔐 **Secure access:** Integrated authentication for gardener profiles.
 
 ---
 
