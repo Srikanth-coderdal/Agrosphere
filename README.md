@@ -38,63 +38,96 @@
 
 ## ⚡ Core Intelligence Stack
 
-<p align="left">
-  <em>Agrosphere isn't your average tech stack—it's a full-on AI copilot for the soil. Expand any module below to peek under the hood.</em>
-</p>
-
-<details open>
-<summary><strong>🔬 01. Crop Disease Scanner</strong> &nbsp;<code>[Gemini Vision]</code> <code>[Multimodal]</code></summary>
 <br />
 
-> **The Vibe:** Snap a pic of a sick leaf, get an instant diagnosis before the blight takes over.
-
-- 👁️ **Visual Pathogen Engine:** Feeds leaf micro-imagery straight to `Gemini Vision` to catch blights, rusts, and nutrient bugs in milliseconds.
-- ✍️ **Farmer Context Overlay:** Drop in quick text notes (watering history, weird symptoms) so the model fine-tunes its diagnostic confidence.
-- 🌐 **Bilingual Output Engine:** Delivers immediate, crystal-clear remediation steps in both English and Tamil.
-
-</details>
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3 align="center">
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Microscope.png" width="32" height="32" alt="Microscope" />
+        <br />
+        <code>01. DISEASE SCANNER</code>
+      </h3>
+      <p align="center">
+        <img src="https://img.shields.io/badge/GEMINI_VISION-00D26A?style=for-the-badge&logoColor=white" alt="Gemini Vision" />
+        <img src="https://img.shields.io/badge/MULTIMODAL-007ACC?style=for-the-badge&logoColor=white" alt="Multimodal" />
+      </p>
+      <blockquote align="center">
+        <em>"Snap a pic of a sick leaf, get an instant diagnosis before the blight takes over."</em>
+      </blockquote>
+      <hr />
+      <ul>
+        <li>👁️ <b>Visual Pathogen Engine:</b> Feeds leaf micro-imagery to <code>Gemini Vision</code> to catch blights, rusts, and nutrient bugs in milliseconds.</li>
+        <li>✍️ <b>Farmer Context Overlay:</b> Drop in quick text notes (watering history, weird symptoms) so the model fine-tunes its diagnostic confidence.</li>
+        <li>🌐 <b>Bilingual Engine:</b> Delivers immediate, crystal-clear remediation steps in both English and Tamil.</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3 align="center">
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Droplet.png" width="32" height="32" alt="Droplet" />
+        <br />
+        <code>02. SMART IRRIGATION</code>
+      </h3>
+      <p align="center">
+        <img src="https://img.shields.io/badge/TELEMETRY_ENGINE-FF9900?style=for-the-badge&logoColor=white" alt="Telemetry Engine" />
+        <img src="https://img.shields.io/badge/HYDRATION_LOGIC-00D26A?style=for-the-badge&logoColor=white" alt="Hydration Logic" />
+      </p>
+      <blockquote align="center">
+        <em>"Stop drowning your crops. Precision watering backed by real field telemetry."</em>
+      </blockquote>
+      <hr />
+      <ul>
+        <li>📡 <b>Field Telemetry Matrix:</b> Ingests soil composition, growth stages, and real-time climate vectors.</li>
+        <li>⏱️ <b>AI Hydro-Scheduling:</b> Calculates high-efficiency watering windows designed to eliminate runoff and evaporation.</li>
+        <li>🌿 <b>Water-Thrift Protocol:</b> Maximizes Water-Use Efficiency (WUE) so you save resources without frying crop yield.</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3 align="center">
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Bar%20Chart.png" width="32" height="32" alt="Bar Chart" />
+        <br />
+        <code>03. YIELD PREDICTION</code>
+      </h3>
+      <p align="center">
+        <img src="https://img.shields.io/badge/AGRO_ANALYTICS-7C3AED?style=for-the-badge&logoColor=white" alt="Agro Analytics" />
+        <img src="https://img.shields.io/badge/PREDICTIVE_ML-007ACC?style=for-the-badge&logoColor=white" alt="Predictive ML" />
+      </p>
+      <blockquote align="center">
+        <em>"Simulated harvest forecasts so you know your numbers before the seed even hits the dirt."</em>
+      </blockquote>
+      <hr />
+      <ul>
+        <li>🧮 <b>Harvest Simulator:</b> Crunches acreage, seed variants, and input schedules to throw out accurate tonnage estimates.</li>
+        <li>📈 <b>Growth Driver Engine:</b> Pinpoints exact yield bottlenecks and outputs custom stage-by-stage fertigation directives.</li>
+        <li>🎯 <b>Pre-Season Simulation:</b> Test-drive different resource allocation models to maximize ROI way before planting day.</li>
+      </ul>
+    </td>
+    <td width="50%" valign="top">
+      <h3 align="center">
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Potted%20Plant.png" width="32" height="32" alt="Potted Plant" />
+        <br />
+        <code>04. URBAN GARDENING</code>
+      </h3>
+      <p align="center">
+        <img src="https://img.shields.io/badge/MICRO_FARMING-FF0055?style=for-the-badge&logoColor=white" alt="Micro Farming" />
+        <img src="https://img.shields.io/badge/SPACE_AWARE-00D26A?style=for-the-badge&logoColor=white" alt="Space Aware" />
+      </p>
+      <blockquote align="center">
+        <em>"Balcony-to-rooftop playbooks for city growers who mean business."</em>
+      </blockquote>
+      <hr />
+      <ul>
+        <li>🪴 <b>Micro-Footprint Tactics:</b> Customized agricultural playbooks built explicitly for small plots, balconies, and vertical setups.</li>
+        <li>🧠 <b>AI Plant Copilot:</b> Tailor-fit care strategies optimized for exact pot volumes, sunlight hours, and container flora.</li>
+        <li>🔐 <b>Zero-Trust Auth Guard:</b> Ironclad, session-persisted authentication keeps your garden profiles and personal grow setups strictly locked down.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 <br />
-
-<details open>
-<summary><strong>💧 02. Smart Irrigation Engine</strong> &nbsp;<code>[Telemetry Engine]</code> <code>[Hydration Logic]</code></summary>
-<br />
-
-> **The Vibe:** Stop drowning your crops. Precision watering backed by real field telemetry.
-
-- 📡 **Field Telemetry Matrix:** Ingests soil composition, growth stages, and real-time climate vectors instead of using lazy static guesses.
-- ⏱️ **AI Hydro-Scheduling:** Calculates high-efficiency watering windows designed to completely kill off surface runoff and evaporation.
-- 🌿 **Water-Thrift Protocol:** Maximizes your Water-Use Efficiency (WUE) so you save resources without frying crop yield.
-
-</details>
-
-<br />
-
-<details open>
-<summary><strong>📊 03. Yield Prediction Matrix</strong> &nbsp;<code>[Agro-Analytics]</code> <code>[Predictive ML]</code></summary>
-<br />
-
-> **The Vibe:** Simulated harvest forecasts so you know your numbers before the seed even hits the dirt.
-
-- 🧮 **Harvest Simulator:** Crunches acreage, seed variants, and input schedules to throw out accurate tonnage estimates.
-- 📈 **Growth Driver Engine:** Pinpoints exact yield bottlenecks and outputs custom stage-by-stage fertigation directives.
-- 🎯 **Pre-Season Simulation:** Test-drive different resource allocation models to maximize ROI way before planting day.
-
-</details>
-
-<br />
-
-<details open>
-<summary><strong>🏙️ 04. Urban Gardening Hub</strong> &nbsp;<code>[Micro-Farming]</code> <code>[Space-Aware]</code></summary>
-<br />
-
-> **The Vibe:** Balcony-to-rooftop playbooks for city growers who mean business.
-
-- 🪴 **Micro-Footprint Tactics:** Customized agricultural playbooks built explicitly for small plots, balconies, and vertical setups.
-- 🧠 **AI Plant Copilot:** Tailor-fit care strategies optimized for exact pot volumes, sunlight hours, and container flora.
-- 🔐 **Zero-Trust Access:** Clean session management and state persistence for city growers and community garden admins.
-
-</details>
 
 ---
 
