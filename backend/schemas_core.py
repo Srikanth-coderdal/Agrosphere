@@ -13,13 +13,22 @@ class ScanRequest(BaseModel):
 
 
 class ScanResponse(BaseModel):
-    disease_name: str = Field(..., description="Identified disease or 'Healthy'.")
-    status: Literal["Healthy", "Diseased", "Unclear"] = Field(..., description="Overall crop health status.")
+    disease_name: str = Field(
+        ...,
+        description="Specific identified condition or entity (e.g. 'Beehive / Pollinator', 'Wildfire / Heat Scorch').",
+    )
+    status: Literal[
+        "Diseased / Infected",
+        "Normal / Healthy",
+        "Physically Damaged",
+        "Environmental Hazard",
+        "Unclear",
+    ] = Field(..., description="Comprehensive farm visual assistant status.")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Model confidence (0.0 – 1.0).")
-    visible_symptoms: List[str] = Field(default_factory=list, description="Observed symptoms on the crop.")
-    organic_remedies: List[str] = Field(default_factory=list, description="Organic/natural treatment options.")
-    chemical_remedies: List[str] = Field(default_factory=list, description="Chemical treatment options.")
-    preventive_measures: List[str] = Field(default_factory=list, description="Steps to prevent future infection.")
+    visible_symptoms: List[str] = Field(default_factory=list, description="Observed symptoms or visible features.")
+    organic_remedies: List[str] = Field(default_factory=list, description="Organic/natural treatment or stewardship tips.")
+    chemical_remedies: List[str] = Field(default_factory=list, description="Chemical treatment options (empty if not applicable).")
+    preventive_measures: List[str] = Field(default_factory=list, description="Prevention or practical farm action plan.")
 
 
 # ─────────────────────────────────────────────

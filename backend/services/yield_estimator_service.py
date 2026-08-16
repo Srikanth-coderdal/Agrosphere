@@ -1,8 +1,19 @@
-"""
-Algorithmic Yield Estimator — deterministic, no external LLM.
-Uses crop baseline yields combined with soil, irrigation, and weather multipliers.
-"""
+import json
+import logging
+from typing import Optional
+
+from fastapi import HTTPException
+from google import genai
+from google.genai import types
+
+from config import settings
 from schemas.yield_estimator import YieldEstimatorRequest, YieldEstimatorResponse
+
+logger = logging.getLogger(__name__)
+
+# ── Google GenAI SDK (google-genai) ───────────────────────────────────────────
+_MODEL = "gemini-3.6-flash"
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 # ── Baseline yield (tons/hectare) under ideal conditions ─────────────────────
 _BASELINE_YIELD: dict[str, float] = {
@@ -14,6 +25,8 @@ _BASELINE_YIELD: dict[str, float] = {
     "cotton":  1.8,
     "soybean": 2.8,
     "sugarcane": 70.0,
+    "almonds": 2.2,
+    "almond":  2.2,
     "default": 4.0,
 }
 
@@ -36,6 +49,7 @@ _IRRIGATION_MULTIPLIER: dict[str, float] = {
 }
 
 # ── Weather condition yield multipliers ───────────────────────────────────────
+# ── Weather condition yield multipliers ───────────────────────────────────────
 _WEATHER_MULTIPLIER: dict[str, float] = {
     "optimal":     1.00,
     "moderate":    0.85,
@@ -56,134 +70,166 @@ def _key(value: str) -> str:
     return value.strip().lower()
 
 
-def _identify_drivers(
-    req: YieldEstimatorRequest,
-    soil_m: float,
-    irr_m: float,
-    weather_m: float,
-    historical_factor: float,
-) -> list[str]:
-    drivers: list[str] = []
+_GEMINI_SYSTEM_PROMPT = """\
+You are an expert agronomist and precision crop yield optimization AI.
+Analyze the user's crop, field size, soil classification, irrigation system, weather condition, and historical yield performance to generate crop-tailored key yield drivers and specific optimization suggestions.
+
+CRITICAL Crop-Specific Guidelines:
+1. RETURN KEY METRICS FIRST: Return key metrics (estimated target yield / drivers) immediately at the top of the JSON object before detailing other bullet points.
+2. STRICT CROP-SPECIFICITY: All key yield drivers and optimization suggestions MUST be strictly customized to the entered crop (e.g., almond trees, rice, sugarcane, tomatoes, wheat, cotton, etc.).
+3. NEVER RETURN GENERIC ADVICE: Do NOT provide generic statements such as "use certified seeds" for perennial tree crops (like almonds, apples, citrus, nuts) or generic agricultural platitudes that apply to all plants.
+4. CROP-TAILORED KEY DRIVERS: Identify exact biological, physiological, environmental, and management drivers specific to the input crop:
+   - For Almonds: winter chill hour accumulation, bloom-period bee pollination weather, hull-split irrigation deficit control, and navel orangeworm management.
+   - For Rice: panicle initiation water depth, mid-season drainage, soil anaerobic conditions, and nitrogen top-dressing timing.
+   - For Sugarcane: stalk elongation moisture, ratoon stubble management, borer prevention, and ripening sucrose concentration control.
+   - For Tomato/Vegetables: blossom-end rot calcium regulation, indeterminate canopy pruning, pollinator activity, and deficit irrigation during fruit set.
+5. SPECIFIC OPTIMIZATION STEPS: Provide concrete, practical optimization steps matching the exact crop growth model, crop type (annual grain, perennial nut tree, tuber, cash crop), and field environment provided.
+6. Return ONLY a single raw JSON object matching this structure with no markdown formatting or code blocks:
+{
+  "key_yield_drivers": ["<crop-tailored driver 1>", "<crop-tailored driver 2>", "<crop-tailored driver 3>"],
+  "optimization_suggestions": ["<crop-specific step 1>", "<crop-specific step 2>", "<crop-specific step 3>", "<crop-specific step 4>"]
+}
+"""
+
+_GEMINI_SYSTEM_PROMPT_TA = """\
+நீங்கள் ஒரு நிபுணர் வேளாண்மை மற்றும் பயிர் விளைச்சல் உகப்பாக்க AI.
+வழங்கப்பட்ட பயிர், மண், பாசனம், காலநிலை தரவுகளை ஆய்வு செய்து, குறிப்பிட்ட பயிர்களுக்கான பிரத்யேக விளைச்சல் காரணிகள் மற்றும் உகப்பாக்க ஆலோசனைகளைத் தமிழில் JSON வடிவத்தில் வழங்கவும்.
+
+முக்கிய விதிகள்:
+1. RETURN KEY METRICS FIRST: விளைச்சல் காரணிகள் மற்றும் உகப்பாக்க ஆலோசனைகளை JSON இன் தொடக்கத்திலேயே முதலில் வழங்கவும்.
+2. பயிர்-சார்ந்த பிரத்யேக ஆலோசனைகள்: அனைத்து காரணிகளும் பரிந்துரைகளும் குறிப்பிட்ட பயிருக்கு (எ.கா. பாதாம் மரங்கள், நெல், கரும்பு போன்றவை) மட்டுமே பொருந்தக்கூடியதாக இருக்க வேண்டும்.
+3. பொதுவான ஆலோசனைகளை தவிர்க்கவும்: பாதாம் போன்ற பல்லாண்டு மர பயிர்களுக்கு "சான்றளிக்கப்பட்ட விதைகளைப் பயன்படுத்துங்கள்" போன்ற பொதுவான கருத்துகளை வழங்க வேண்டாம்.
+4. பயிர்-சார்ந்த முக்கிய காரணிகள்: பயிரின் குறிப்பிட்ட வளர்ச்சி காரணிகளைத் தரவும் (எ.கா. பாதாம்: குளிர்கால சில் ஹவர்ஸ், பூக்கும் கால மகரந்தச் சேர்க்கை, ஹல்-ஸ்பிளிட் பாசனம்).
+5. JSON வடிவம் மட்டுமே:
+{
+  "key_yield_drivers": ["<காரணி 1>", "<காரணி 2>", "<காரணி 3>"],
+  "optimization_suggestions": ["<பரிந்துரை 1>", "<பரிந்துரை 2>", "<பரிந்துரை 3>", "<பரிந்துரை 4>"]
+}
+"""
+
+
+def _fallback_drivers(req: YieldEstimatorRequest, soil_m: float, irr_m: float, weather_m: float) -> list[str]:
+    drivers = []
+    crop = req.crop_type.strip().title()
     lang = (getattr(req, "language", "en") or "en").lower()
 
-    # Weather is highest impact
-    if weather_m < 0.7:
-        if lang == "ta":
-            drivers.append(
-                f"வறட்சி நிலைகள் விளைச்சலை கடுமையாக குறைக்கின்றன (காலநிலை பெருக்கம்: {weather_m:.2f}×)"
-            )
-        else:
-            drivers.append(
-                f"Drought conditions severely limiting yield (weather multiplier: {weather_m:.2f}×)"
-            )
-    elif weather_m < 0.9:
-        if lang == "ta":
-            drivers.append(f"சிறிதளவு உகந்தில்லாத காலநிலை விளைச்சலை குறைக்கிறது (பெருக்கம்: {weather_m:.2f}×)")
-        else:
-            drivers.append(f"Sub-optimal weather reducing yield (multiplier: {weather_m:.2f}×)")
+    if "almond" in crop.lower():
+        return [
+            f"Winter chill hour fulfillment and bloom-phase temperature critical for {crop} fruit set.",
+            f"Pollination efficiency during bloom period influencing kernel yield potential.",
+            f"Hull-split deficit irrigation management regulating kernel quality and hull split timing.",
+        ]
+    elif "rice" in crop.lower():
+        return [
+            f"Standing water depth control during panicle initiation determining grain head size.",
+            f"Solar radiation and canopy light interception during grain filling phase.",
+            f"Soil nitrogen availability and leaf chlorophyll index prior to flowering.",
+        ]
+    elif "sugarcane" in crop.lower():
+        return [
+            f"Stalk elongation water availability driving total cane biomass production.",
+            f"Pre-harvest maturation drying phase regulating Brix sucrose accumulation.",
+            f"Ratoon stubble management and soil aeration supporting tiller density.",
+        ]
+
+    if lang == "ta":
+        drivers.append(f"{crop} பயிருக்கான காலநிலை மற்றும் பாசன சமநிலை விளைச்சலை நிர்ணயிக்கிறது.")
+        drivers.append(f"{req.soil_type.title()} மண் வகை மற்றும் {req.irrigation_type.title()} பாசன முறை.")
     else:
-        drivers.append(
-            "வழக்கத்திற்கு ஏற்ற காலநிலை நல்ல விளைச்சலுக்கு உதவுகிறது"
-            if lang == "ta"
-            else "Favourable weather conditions supporting strong yield"
-        )
-
-    # Irrigation
-    if irr_m < 0.75:
-        if lang == "ta":
-            drivers.append(
-                f"மழை சார்ந்த/வெள்ள பாசனம் நீர் திறனை குறைக்கிறது (பெருக்கம்: {irr_m:.2f}×)"
-            )
-        else:
-            drivers.append(
-                f"Rainfed/flood irrigation reducing water efficiency (multiplier: {irr_m:.2f}×)"
-            )
-    elif irr_m >= 1.0:
-        drivers.append(
-            "துளி பாசனம் நீர்ப்பயன்பாட்டு திறனை அதிகரிக்கிறது"
-            if lang == "ta"
-            else "Drip irrigation maximising water-use efficiency"
-        )
-
-    # Soil
-    if soil_m < 0.75:
-        if lang == "ta":
-            drivers.append(
-                f"மணல்/சுண்ணாம்பு தன்மை மண் சத்துகளை பிடித்துக் கொள்ளும் திறனை குறைக்கிறது (பெருக்கம்: {soil_m:.2f}×)"
-            )
-        else:
-            drivers.append(
-                f"Sandy/chalky soil limiting nutrient retention (multiplier: {soil_m:.2f}×)"
-            )
-    elif soil_m >= 1.0:
-        drivers.append(
-            "மண்-களிமண் (loamy) மண் சத்து மற்றும் ஈரப்பதத்திற்கு உகந்த சமநிலையை வழங்குகிறது"
-            if lang == "ta"
-            else "Loamy soil providing ideal nutrient and moisture balance"
-        )
-
-    # Historical data
-    if req.historical_yield_tons > 0:
-        if lang == "ta":
-            drivers.append(
-                f"கடந்த பருவத்தில் {req.historical_yield_tons} டன் விளைச்சல் அளவுத்தீர்விற்குப் பயன்படுத்தப்பட்டது"
-            )
-        else:
-            drivers.append(
-                f"Historical yield of {req.historical_yield_tons} tons used as calibration anchor"
-            )
+        drivers.append(f"{crop} physiological response to weather condition ({req.weather_condition}).")
+        drivers.append(f"Water retention and root zone aeration in {req.soil_type} soil with {req.irrigation_type} irrigation.")
 
     return drivers
 
 
-def _optimization_suggestions(
-    req: YieldEstimatorRequest,
-    soil_m: float,
-    irr_m: float,
-    weather_m: float,
-) -> list[str]:
-    suggestions: list[str] = []
+def _fallback_suggestions(req: YieldEstimatorRequest, soil_m: float, irr_m: float, weather_m: float) -> list[str]:
+    crop = req.crop_type.strip().lower()
+
+    if "almond" in crop:
+        return [
+            "Maintain managed beehive density (2–3 hives/acre) during bloom for optimal nut set.",
+            "Implement regulated deficit irrigation during hull-split to suppress Navel Orangeworm and Hull Rot.",
+            "Apply foliar boron and zinc prior to flowering to support pollen tube growth.",
+            "Mulch tree drip-lines to buffer soil moisture fluctuations and protect shallow root networks.",
+        ]
+    elif "rice" in crop:
+        return [
+            "Maintain a shallow 3–5 cm standing water layer during tillering, followed by mid-season drainage.",
+            "Apply split nitrogen fertilizer at tillering and panicle initiation to maximize filled grain count.",
+            "Monitor leaf color chart (LCC) to adjust top-dressing fertilizer rates precisely.",
+            "Use alternate wetting and drying (AWD) irrigation to save water while maintaining yield.",
+        ]
+    elif "sugarcane" in crop:
+        return [
+            "Schedule regulated water stress 4–6 weeks before harvest to promote sucrose synthesis.",
+            "Perform trash mulching between cane rows to preserve moisture and suppress weeds.",
+            "Apply micro-nutrient foliar spray (iron and zinc) during early vegetative growth.",
+            "Ensure effective subsurface drainage to prevent waterlogging during monsoon periods.",
+        ]
+
+    return [
+        f"Optimize irrigation timing for {req.crop_type} during critical flowering and grain-filling stages.",
+        f"Conduct soil nutrient testing to balance N-P-K formulation for {req.soil_type} soil.",
+        f"Apply organic mulch to stabilize soil moisture and mitigate temperature spikes.",
+        f"Monitor field regularly for early signs of crop-specific pests and physiological stress.",
+    ]
+
+
+async def _get_gemini_yield_advice(req: YieldEstimatorRequest, estimated_per_ha: float) -> tuple[list[str], list[str]]:
     lang = (getattr(req, "language", "en") or "en").lower()
+    system_prompt = _GEMINI_SYSTEM_PROMPT_TA if lang == "ta" else _GEMINI_SYSTEM_PROMPT
 
-    if irr_m < 0.9:
-        suggestions.append(
-            "நீர் பயன்பாட்டுத் திறனை அதிகரிக்க துளி பாசனத்திற்கு மாறுங்கள் (அதிகபட்சம் சுமார் 35% வரை)."
-            if lang == "ta"
-            else "Upgrade to drip irrigation to improve water-use efficiency by up to 35%."
+    prompt = f"""\
+{system_prompt}
+
+Crop Input Details:
+- Crop Type: {req.crop_type}
+- Field Size: {req.field_size_hectares} hectares
+- Soil Type: {req.soil_type}
+- Irrigation Method: {req.irrigation_type}
+- Weather Condition: {req.weather_condition}
+- Historical Yield: {req.historical_yield_tons} tons
+- Estimated Target Yield: {estimated_per_ha:.2f} tons/hectare
+"""
+    try:
+        response = await _client.aio.models.generate_content_stream(
+            model=_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.2,
+                max_output_tokens=1024,
+            ),
         )
-    if soil_m < 0.85:
-        suggestions.append(
-            "மண்ணின் அமைப்பு மற்றும் நீரை பிடித்துக் கொள்ளும் திறன் மேம்பட கரிம உரம் (compost) மற்றும் பயோசார் (biochar) சேர்க்கவும்."
-            if lang == "ta"
-            else "Amend soil with organic compost and biochar to improve structure and water retention."
-        )
-    if weather_m < 0.7:
-        suggestions.append(
-            "வறட்சியை சமாளிக்க நிழற்பாய்/ஷேட் நெட் அல்லது மைக்ரோ-ஸ்பிரிங்களரை பயன்படுத்தி ஆவியாதல் (evaporation) குறைக்கவும்."
-            if lang == "ta"
-            else "Install shade nets or micro-sprinklers for drought mitigation and evaporation control."
-        )
-    if req.weather_condition == "heavy_rain":
-        suggestions.append(
-            "வயலில் நீர் தேங்காமல் இருக்க உயர்த்தப்பட்ட படுக்கைகள் (raised beds) அல்லது வாய்க்கால்/ஃபர்ரோ முறைகளை அமைக்கவும்."
-            if lang == "ta"
-            else "Improve field drainage with raised beds or furrow systems to prevent waterlogging."
-        )
-    suggestions.append(
-        "உரத்தை 3 தடவைகளாக (அடிப்படை + மேலிடு) பிரித்து கொடுப்பதால் நீர்வழி (leaching) இழப்புகள் குறையும்."
-        if lang == "ta"
-        else f"Apply split fertilization across 3 doses (basal + top-dress) to reduce leaching losses."
+        full_text = ""
+        async for chunk in response:
+            full_text += chunk.text or ""
+        
+        cleaned_text = full_text.strip()
+        if cleaned_text.startswith("```"):
+            lines = cleaned_text.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            cleaned_text = "\n".join(lines).strip()
+
+        data = json.loads(cleaned_text)
+        drivers = data.get("key_yield_drivers", [])
+        suggestions = data.get("optimization_suggestions", [])
+        if drivers and suggestions:
+            return drivers, suggestions
+    except Exception as exc:
+        logger.warning("Gemini yield advice generation failed or timed out: %s", exc)
+
+    # Fallback to crop-specific deterministic suggestions if API fails/unconfigured
+    return (
+        _fallback_drivers(req, 1.0, 1.0, 1.0),
+        _fallback_suggestions(req, 1.0, 1.0, 1.0),
     )
-    suggestions.append(
-        "உங்கள் பகுதியின் காலநிலை/வேளாண் நிலைக்கு பொருந்தும், சான்றளிக்கப்பட்ட நோய் எதிர்ப்பு விதைகளை பயன்படுத்துங்கள்."
-        if lang == "ta"
-        else "Use certified, disease-resistant seed varieties matched to your regional agro-climatic zone."
-    )
-
-    return suggestions
 
 
-def predict_yield(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
+async def predict_yield(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
     crop_key = _key(req.crop_type)
     baseline = _BASELINE_YIELD.get(crop_key, _BASELINE_YIELD["default"])
 
@@ -196,13 +242,10 @@ def predict_yield(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
         historical_per_ha = req.historical_yield_tons / req.field_size_hectares
         model_per_ha = baseline * soil_m * irr_m * weather_m
         estimated_per_ha = 0.6 * model_per_ha + 0.4 * historical_per_ha
-        historical_factor = historical_per_ha
     else:
         estimated_per_ha = baseline * soil_m * irr_m * weather_m
-        historical_factor = 0.0
 
     total_yield = round(estimated_per_ha * req.field_size_hectares, 2)
-    per_ha_yield = round(estimated_per_ha, 2)
 
     # Confidence interval
     window = _CONFIDENCE_WINDOW.get(_key(req.weather_condition), 0.15)
@@ -213,8 +256,7 @@ def predict_yield(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
     else:
         confidence_range = f"{low} – {high} tons"
 
-    drivers = _identify_drivers(req, soil_m, irr_m, weather_m, historical_factor)
-    suggestions = _optimization_suggestions(req, soil_m, irr_m, weather_m)
+    drivers, suggestions = await _get_gemini_yield_advice(req, estimated_per_ha)
 
     return YieldEstimatorResponse(
         estimated_yield_tons=total_yield,
@@ -222,3 +264,5 @@ def predict_yield(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
         key_yield_drivers=drivers,
         optimization_suggestions=suggestions,
     )
+
+

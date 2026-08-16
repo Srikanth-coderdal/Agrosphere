@@ -6,9 +6,10 @@ router = APIRouter()
 
 
 @router.post("/predict", response_model=YieldEstimatorResponse, summary="Predict crop yield algorithmically")
-def yield_predict(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
+async def yield_predict(req: YieldEstimatorRequest) -> YieldEstimatorResponse:
     """
     Returns estimated yield in tons, confidence range, key yield drivers,
-    and optimization suggestions using deterministic agricultural models.
+    and optimization suggestions using crop-tailored agricultural models and Gemini AI.
     """
-    return predict_yield(req)
+    return await predict_yield(req)
+
