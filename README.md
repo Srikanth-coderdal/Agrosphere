@@ -39,76 +39,60 @@
 ## ⚡ Core Intelligence Stack
 
 <p align="left">
-  <em>Click on any module below to inspect system capabilities, AI models, and telemetry flows.</em>
+  <em>Agrosphere isn't your average tech stack—it's a full-on AI copilot for the soil. Expand any module below to peek under the hood.</em>
 </p>
 
 <details open>
-<summary><strong>🔬 Module 01: Crop Disease Scanner</strong> &nbsp;<code>[Gemini Vision]</code> <code>[Multimodal]</code></summary>
+<summary><strong>🔬 01. Crop Disease Scanner</strong> &nbsp;<code>[Gemini Vision]</code> <code>[Multimodal]</code></summary>
 <br />
 
-| Field | Capability |
-| :--- | :--- |
-| **Primary Model** | `Gemini 1.5 Pro / Vision` |
-| **Input Pipeline** | Leaf Micro-imagery + Voice/Text Context |
-| **Localization** | Multi-Language Inference (English & Tamil) |
+> **The Vibe:** Snap a pic of a sick leaf, get an instant diagnosis before the blight takes over.
 
-- 👁️ **Visual Pathogen Engine:** Scans plant leaf imagery in milliseconds to flag early-stage blights, rusts, and nutrient deficiencies.
-- 🎙️ **Farmer Voice Overlay:** Accepts optional regional audio or text commentary to fine-tune diagnostic confidence scores.
-- ⚡ **Treatment Blueprint:** Outputs actionable, eco-friendly remediation steps with localized crop management tips.
+- 👁️ **Visual Pathogen Engine:** Feeds leaf micro-imagery straight to `Gemini Vision` to catch blights, rusts, and nutrient bugs in milliseconds.
+- ✍️ **Farmer Context Overlay:** Drop in quick text notes (watering history, weird symptoms) so the model fine-tunes its diagnostic confidence.
+- 🌐 **Bilingual Output Engine:** Delivers immediate, crystal-clear remediation steps in both English and Tamil.
 
 </details>
 
 <br />
 
 <details open>
-<summary><strong>💧 Module 02: Smart Irrigation Advisor</strong> &nbsp;<code>[Telemetry Engine]</code> <code>[Hydration Logic]</code></summary>
+<summary><strong>💧 02. Smart Irrigation Engine</strong> &nbsp;<code>[Telemetry Engine]</code> <code>[Hydration Logic]</code></summary>
 <br />
 
-| Field | Capability |
-| :--- | :--- |
-| **Telemetry Ingestion**| Soil Moisture, Crop Growth Stage, Climate Data |
-| **Optimization Target**| Evapotranspiration Minimization |
-| **Output Type** | Precision Volumetric & Timed Dosing |
+> **The Vibe:** Stop drowning your crops. Precision watering backed by real field telemetry.
 
-- 📡 **Real-Time Telemetry Matrix:** Dynamically processes soil composition, humidity metrics, and local weather patterns.
-- ⏱️ **AI Hydro-Scheduling:** Computes high-efficiency watering windows designed to eliminate surface runoff and evaporation.
-- 🌿 **Water Thrift Protocol:** Maximizes Water-Use Efficiency (WUE) without stress-inducing crop yields.
+- 📡 **Field Telemetry Matrix:** Ingests soil composition, growth stages, and real-time climate vectors instead of using lazy static guesses.
+- ⏱️ **AI Hydro-Scheduling:** Calculates high-efficiency watering windows designed to completely kill off surface runoff and evaporation.
+- 🌿 **Water-Thrift Protocol:** Maximizes your Water-Use Efficiency (WUE) so you save resources without frying crop yield.
 
 </details>
 
 <br />
 
 <details open>
-<summary><strong>📊 Module 03: Yield Prediction Matrix</strong> &nbsp;<code>[Agro-Analytics]</code> <code>[Predictive ML]</code></summary>
+<summary><strong>📊 03. Yield Prediction Matrix</strong> &nbsp;<code>[Agro-Analytics]</code> <code>[Predictive ML]</code></summary>
 <br />
 
-| Field | Capability |
-| :--- | :--- |
-| **Forecast Metric** | Tonnage / Acreage Projections |
-| **Analytics Engine** | Multi-Factor Growth Driver Mapping |
-| **Use Case** | Pre-Season ROI & Resource Allocation |
+> **The Vibe:** Simulated harvest forecasts so you know your numbers before the seed even hits the dirt.
 
-- 🧮 **Harvest Simulator:** Calculates estimated crop output based on acreage, seed variant, and applied fertigation schedules.
-- 📈 **Growth Driver Profiler:** Highlights critical yield bottlenecks and delivers stage-by-stage nutrient directives.
-- 🎯 **Seasonal Simulation:** Enables farmers to stress-test resource allocation models prior to field planting.
+- 🧮 **Harvest Simulator:** Crunches acreage, seed variants, and input schedules to throw out accurate tonnage estimates.
+- 📈 **Growth Driver Engine:** Pinpoints exact yield bottlenecks and outputs custom stage-by-stage fertigation directives.
+- 🎯 **Pre-Season Simulation:** Test-drive different resource allocation models to maximize ROI way before planting day.
 
 </details>
 
 <br />
 
 <details open>
-<summary><strong>🏙️ Module 04: Urban Gardening Hub</strong> &nbsp;<code>[Micro-Farming]</code> <code>[Space-Aware]</code></summary>
+<summary><strong>🏙️ 04. Urban Gardening Hub</strong> &nbsp;<code>[Micro-Farming]</code> <code>[Space-Aware]</code></summary>
 <br />
 
-| Field | Capability |
-| :--- | :--- |
-| **Environment Focus**| Balconies, Vertical Racks & Small Plots |
-| **Copilot Mode** | Adaptive Micro-Climate Recommendations |
-| **Security Layer** | JWT / Session-Based User Profiling |
+> **The Vibe:** Balcony-to-rooftop playbooks for city growers who mean business.
 
-- 🪴 **Micro-Footprint Tactical Guides:** Tailored agricultural playbooks designed specifically for high-density, urban spaces.
-- 🧠 **AI Plant Copilot:** Tailored care strategies optimized for specific pot volumes, direct sunlight hours, and container flora.
-- 🔐 **Zero-Trust Access:** Secure session management and state persistence for urban growers and community garden managers.
+- 🪴 **Micro-Footprint Tactics:** Customized agricultural playbooks built explicitly for small plots, balconies, and vertical setups.
+- 🧠 **AI Plant Copilot:** Tailor-fit care strategies optimized for exact pot volumes, sunlight hours, and container flora.
+- 🔐 **Zero-Trust Access:** Clean session management and state persistence for city growers and community garden admins.
 
 </details>
 
