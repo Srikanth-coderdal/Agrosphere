@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ── Agricultural Color Theme ─────────────────────────────────────── */
+:root {
+  --background: #f8fafc;        /* slate-50  */
+  --foreground: #0f172a;        /* slate-900 */
+  --primary:    #059669;        /* emerald-600 */
+  --primary-dk: #047857;        /* emerald-700 */
+  --accent:     #22c55e;        /* green-500  */
+  --earthy:     #d97706;        /* amber-600  */
+  --nav-bg:     rgba(255,255,255,0.85);
+  --nav-border: #d1fae5;        /* emerald-100 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;      /* slate-900 */
+    --foreground: #f1f5f9;      /* slate-100 */
+    --nav-bg:     rgba(15,23,42,0.90);
+    --nav-border: #064e3b;      /* emerald-900 */
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary:    var(--primary);
+  --color-primary-dk: var(--primary-dk);
+  --color-accent:     var(--accent);
+  --color-earthy:     var(--earthy);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Force dark text color on all inputs, selects, and textareas for visibility */
+input, select, textarea {
+  color: #0f172a !important; /* text-slate-900 equivalent */
+  background-color: #ffffff !important;
+}
+
+/* Allow range sliders to keep their transparent track backgrounds */
+input[type="range"] {
+  background-color: transparent !important;
+}
+
+/* ── Navbar ───────────────────────────────────────────────────────── */
+.nav-glass {
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--nav-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.nav-link:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.nav-link.active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  font-weight: 600;
+}
+
+.nav-link.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+}
+
+/* ── Mobile menu ─────────────────────────────────────────────────── */
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem 1rem;
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-border);
+  backdrop-filter: blur(12px);
+  animation: slideDown 200ms ease;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link.active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* ── Utility ─────────────────────────────────────────────────────── */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
