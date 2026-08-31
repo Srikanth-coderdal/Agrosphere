@@ -19,7 +19,7 @@ const FEATURES = [
     blurb: "Custom watering schedules.",
   },
   {
-    href: "/yield",
+    href: "/yield-estimator",
     icon: "📊",
     title: "Yield Estimator",
     blurb: "Forecast harvest from acreage and inputs.",

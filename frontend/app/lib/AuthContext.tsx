@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { fetchCurrentUser, UserResponse } from "./api";
+import { fetchCurrentUser, logoutUser, UserResponse } from "./api";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 interface AuthState {
@@ -20,7 +20,7 @@ interface AuthContextValue extends AuthState {
   /** Persist a JWT and the associated user profile. */
   login: (token: string, user: UserResponse) => void;
   /** Clear the session. */
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 /* ── Context ────────────────────────────────────────────────────────── */
@@ -61,8 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user, token, isLoading: false });
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+  const logout = useCallback(async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.clear();
+    }
     setState({ user: null, token: null, isLoading: false });
   }, []);
 

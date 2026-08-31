@@ -12,7 +12,7 @@ from schemas.yield_estimator import YieldEstimatorRequest, YieldEstimatorRespons
 logger = logging.getLogger(__name__)
 
 # ── Google GenAI SDK (google-genai) ───────────────────────────────────────────
-_MODEL = "gemini-3.6-flash"
+_MODEL = getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash")
 _client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 # ── Baseline yield (tons/hectare) under ideal conditions ─────────────────────

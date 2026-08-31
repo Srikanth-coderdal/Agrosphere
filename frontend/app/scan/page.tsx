@@ -3,9 +3,10 @@
 import { useState } from "react";
 import ImageUploader from "../components/ImageUploader";
 import ProtectedRoute from "../components/ProtectedRoute";
-import { useLanguage } from "../lib/useLanguage";
+import useProfileStore from "@/store/useProfileStore";
 import { getMessages } from "../lib/i18n";
-import { scanCropImage, ScanResponse } from "@/app/lib/api";
+import { scanCropImage, ScanResponse, SafeDosage } from "@/app/lib/api";
+import { queueOfflineScan } from "@/lib/syncManager";
 
 /* ── Local display type (confidence_score normalised to 0–100) ───────── */
 type HealthStatus =
@@ -19,23 +20,34 @@ interface DisplayResult {
   health_status: HealthStatus;
   disease_name: string;
   confidence_score: number; // 0–100 (converted from API's 0–1)
-  visible_symptoms: string[];
-  organic_remedies: string[];
-  chemical_remedies: string[];
+  verified_treatment: string;
+  safe_dosages: SafeDosage[];
+  organic_recommendations: string[];
   preventive_measures: string[];
+  disclaimer: string;
+  is_verified: boolean;
+  weather_summary?: {
+    temperature: string;
+    rain_chance: string;
+    spray_advisory: string;
+  } | null;
 }
 
 /** Convert a raw API ScanResponse into the display format used by this page. */
 function toDisplayResult(raw: ScanResponse): DisplayResult {
+  const isHealthy = raw.pathogen.toLowerCase().includes("healthy") || raw.pathogen.toLowerCase().includes("normal");
   return {
-    health_status: raw.status,
-    disease_name: raw.disease_name,
+    health_status: isHealthy ? "Normal / Healthy" : "Diseased / Infected",
+    disease_name: raw.pathogen,
     // API returns 0.0–1.0; render as 0–100
-    confidence_score: Math.round(raw.confidence_score * 100),
-    visible_symptoms: raw.visible_symptoms,
-    organic_remedies: raw.organic_remedies,
-    chemical_remedies: raw.chemical_remedies,
-    preventive_measures: raw.preventive_measures,
+    confidence_score: Math.round(raw.confidence * 100),
+    verified_treatment: raw.verified_treatment,
+    safe_dosages: raw.safe_dosages || [],
+    organic_recommendations: raw.organic_recommendations || [],
+    preventive_measures: raw.preventive_measures || [],
+    disclaimer: raw.disclaimer,
+    is_verified: raw.is_verified,
+    weather_summary: raw.weather_summary,
   };
 }
 
@@ -123,18 +135,24 @@ function RemedyCard({ icon, title, items, accentColor = "var(--primary)" }: Reme
 export default function ScanPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [farmerComment, setFarmerComment] = useState("");
+  const [geoLat, setGeoLat] = useState<number | undefined>(undefined);
+  const [geoLng, setGeoLng] = useState<number | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<DisplayResult | null>(null);
-  const { language } = useLanguage();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { language, profileMode } = useProfileStore();
   const msg = getMessages(language);
 
   /* ── Uploader callback ── */
-  const handleSelect = (file: File | null, comment: string) => {
+  const handleSelect = (file: File | null, comment: string, latitude?: number, longitude?: number) => {
     setSelectedFile(file);
     setFarmerComment(comment);
+    setGeoLat(latitude);
+    setGeoLng(longitude);
     if (scanResult) setScanResult(null);
     if (error) setError(null);
+    if (successMessage) setSuccessMessage(null);
   };
 
   /* ── Live scan handler ── */
@@ -144,17 +162,56 @@ export default function ScanPage() {
       return;
     }
     setError(null);
+    setSuccessMessage(null);
     setScanResult(null);
     setIsLoading(true);
+
+    const operationalContext = profileMode === "URBAN_GARDEN" ? "Urban" : "Commercial";
+    const payload = {
+      image: selectedFile,
+      imageBlob: selectedFile,
+      cropType: "General",
+      latitude: geoLat,
+      longitude: geoLng,
+      farmerComment: farmerComment,
+      language: language,
+      operationalContext: operationalContext,
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        await queueOfflineScan(payload);
+        setSuccessMessage("📡 You are offline. Scan saved to queue and will auto-sync when connected.");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to queue offline scan.");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
-      const raw = await scanCropImage(selectedFile, farmerComment, language);
+      const raw = await scanCropImage(
+        selectedFile,
+        "General",
+        geoLat,
+        geoLng,
+        farmerComment,
+        language,
+        operationalContext
+      );
       setScanResult(toDisplayResult(raw));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Scan failed. Please try again."
-      );
+      try {
+        await queueOfflineScan(payload);
+        setSuccessMessage("📡 You are offline. Scan saved to queue and will auto-sync when connected.");
+      } catch (queueErr) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Scan failed. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -194,6 +251,20 @@ export default function ScanPage() {
               }}
             >
               ⚠️ {error}
+            </p>
+          )}
+
+          {/* Success / Offline Queue Message */}
+          {successMessage && (
+            <p
+              role="status"
+              className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
+              style={{
+                background: "color-mix(in srgb,#10b981 10%,transparent)",
+                color: "#047857",
+              }}
+            >
+              {successMessage}
             </p>
           )}
 
@@ -326,21 +397,21 @@ export default function ScanPage() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <RemedyCard
-              icon="🍃"
-              title={msg.scan.visibleSymptoms}
-              items={scanResult.visible_symptoms}
+              icon="📋"
+              title="Verified Treatment"
+              items={[scanResult.verified_treatment]}
               accentColor="#059669"
             />
             <RemedyCard
               icon="🧪"
               title={msg.scan.organicRemedies}
-              items={scanResult.organic_remedies}
+              items={scanResult.organic_recommendations}
               accentColor="#16a34a"
             />
             <RemedyCard
               icon="💊"
-              title={msg.scan.chemicalRemedies}
-              items={scanResult.chemical_remedies}
+              title="Safe Dosages"
+              items={scanResult.safe_dosages.map(d => `${d.chemical_name}: ${d.dosage} ${d.unit} (Max: ${d.max_frequency}, PHI: ${d.pre_harvest_interval_days} days)`)}
               accentColor="#d97706"
             />
             <RemedyCard
@@ -350,6 +421,41 @@ export default function ScanPage() {
               accentColor="#0891b2"
             />
           </div>
+
+          {/* ── Weather & Spray Advisory Card ── */}
+          {scanResult.weather_summary && (
+            <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50/80 via-blue-50/40 to-white p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sky-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl" aria-hidden="true">🌦️</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-sky-900">
+                    Weather &amp; Spray Advisory
+                  </h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-semibold">
+                  <span className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-slate-700 shadow-xs border border-sky-100">
+                    🌡️ Temperature: <strong className="text-slate-900">{scanResult.weather_summary.temperature}</strong>
+                  </span>
+                  <span className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-slate-700 shadow-xs border border-sky-100">
+                    🌧️ Rain Risk: <strong className="text-slate-900">{scanResult.weather_summary.rain_chance}</strong>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-start gap-2.5">
+                <span className="text-base shrink-0 mt-0.5" aria-hidden="true">📢</span>
+                <p className="text-sm font-medium leading-relaxed text-slate-800">
+                  {scanResult.weather_summary.spray_advisory}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {scanResult.disclaimer && (
+            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <strong>Disclaimer: </strong>
+              {scanResult.disclaimer}
+            </div>
+          )}
         </section>
       )}
       </div>

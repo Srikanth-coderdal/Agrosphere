@@ -10,7 +10,7 @@ import {
   SoilType,
 } from "@/app/lib/api";
 import ProtectedRoute from "../components/ProtectedRoute";
-import { useLanguage } from "../lib/useLanguage";
+import useProfileStore from "@/store/useProfileStore";
 import { getMessages } from "../lib/i18n";
 
 /* ── Option lists ───────────────────────────────────────────────────── */
@@ -73,7 +73,7 @@ export default function IrrigationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IrrigationResponse | null>(null);
-  const { language } = useLanguage();
+  const { language } = useProfileStore();
   const msg = getMessages(language);
 
   /* ── Handlers ── */

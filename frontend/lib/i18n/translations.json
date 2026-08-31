@@ -1,0 +1,14 @@
+{
+  "en": {
+    "scan_title": "Crop Disease Scanner",
+    "upload_button": "Analyze Crop Health",
+    "results_header": "Health Status",
+    "language_switch": "Language"
+  },
+  "ta": {
+    "scan_title": "பயிர் நோய் ஸ்கேனர்",
+    "upload_button": "பயிர் ஆரோக்கியம் பகுப்பாய்வு",
+    "results_header": "ஆரோக்கிய நிலை",
+    "language_switch": "மொழி"
+  }
+}

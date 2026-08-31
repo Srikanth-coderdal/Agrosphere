@@ -4,23 +4,33 @@
  */
 import type { LanguageCode } from "./LanguageContext";
 
-/** Mirrors backend/schemas_core.py → ScanResponse */
+/** Mirrors backend/schemas/diagnostic.py -> SafeDosage */
+export interface SafeDosage {
+  chemical_name: string;
+  dosage: string;
+  unit: string;
+  max_frequency: string;
+  pre_harvest_interval_days: number;
+}
+
+/** Mirrors backend/schemas/diagnostic.py -> WeatherSummary */
+export interface WeatherSummary {
+  temperature: string;
+  rain_chance: string;
+  spray_advisory: string;
+}
+
+/** Mirrors backend/schemas/diagnostic.py -> VerifiedDiagnosticResponse */
 export interface ScanResponse {
-  /** Specific identified condition or farm entity */
-  disease_name: string;
-  /** Comprehensive farm visual assistant status */
-  status:
-    | "Diseased / Infected"
-    | "Normal / Healthy"
-    | "Physically Damaged"
-    | "Environmental Hazard"
-    | "Unclear";
-  /** Model confidence in range 0.0 – 1.0 */
-  confidence_score: number;
-  visible_symptoms: string[];
-  organic_remedies: string[];
-  chemical_remedies: string[];
+  pathogen: string;
+  confidence: number;
+  verified_treatment: string;
+  safe_dosages: SafeDosage[];
+  organic_recommendations: string[];
   preventive_measures: string[];
+  disclaimer: string;
+  is_verified: boolean;
+  weather_summary?: WeatherSummary | null;
 }
 
 const API_BASE =
@@ -34,15 +44,26 @@ const API_BASE =
  */
 export async function scanCropImage(
   file: File,
+  cropType: string,
+  latitude?: number,
+  longitude?: number,
   farmerComment?: string,
-  language?: LanguageCode
+  language?: LanguageCode,
+  operationalContext?: string
 ): Promise<ScanResponse> {
   const form = new FormData();
   form.append("image", file);
+  form.append("crop_type", cropType);
+  if (latitude !== undefined && latitude !== null) form.append("latitude", latitude.toString());
+  if (longitude !== undefined && longitude !== null) form.append("longitude", longitude.toString());
   if (farmerComment && farmerComment.trim().length > 0) {
     form.append("farmer_comment", farmerComment.trim());
   }
   if (language) form.append("language", language);
+  if (operationalContext && operationalContext.trim().length > 0) {
+    form.append("operational_context", operationalContext.trim());
+    form.append("context_mode", operationalContext.trim());
+  }
 
   let response: Response;
   try {
@@ -304,6 +325,25 @@ export async function fetchCurrentUser(token: string): Promise<UserResponse> {
   }
   if (!response.ok) throw new Error("Session expired. Please log in again.");
   return response.json() as Promise<UserResponse>;
+}
+
+/**
+ * Log out the current user session and clear backend cookies.
+ * POST /api/v1/auth/logout
+ */
+export async function logoutUser(): Promise<{ message: string }> {
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  } catch {
+    // Gracefully handle network errors during logout
+  }
+  return { message: "Successfully logged out" };
 }
 
 /* ══════════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -40,3 +40,12 @@ def login(
 def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Returns the profile of the currently authenticated user."""
     return UserResponse.model_validate(current_user)
+
+
+@router.post("/logout", summary="Logout user and clear auth cookies")
+def logout(response: Response):
+    """
+    Clears HTTP-only authentication cookies and returns a confirmation payload.
+    """
+    response.delete_cookie("access_token")
+    return {"message": "Successfully logged out"}

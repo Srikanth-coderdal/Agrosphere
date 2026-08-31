@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import {
-  getUrbanGardeningAdvice,
-  SpaceType,
-  UrbanGardeningRequest,
-  UrbanGardeningResponse,
-} from "@/app/lib/api";
+import { getUrbanGardeningAdvice, SpaceType, UrbanGardeningRequest, UrbanGardeningResponse } from "@/app/lib/api";
 import { useAuth } from "@/app/lib/useAuth";
+import useProfileStore from "@/store/useProfileStore";
 import ProtectedRoute from "../components/ProtectedRoute";
-import { useLanguage } from "../lib/useLanguage";
 import { getMessages } from "../lib/i18n";
 
 /* ── Quick-pick plant chips ─────────────────────────────────────────── */
@@ -57,7 +52,7 @@ function InfoCard({ icon, title, content, accentColor = "var(--primary)" }: Info
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function UrbanGardeningPage() {
   const { token } = useAuth();
-  const { language } = useLanguage();
+  const { language } = useProfileStore();
   const msg = getMessages(language);
 
   const [plantType, setPlantType] = useState("");
