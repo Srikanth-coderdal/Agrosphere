@@ -14,7 +14,7 @@ class SafeDosage(BaseModel):
     dosage: str = Field(..., description="Safe dosage instructions.")
     unit: str = Field(..., description="Unit of measurement.")
     max_frequency: str = Field(..., description="Maximum re-application frequency.")
-    pre_harvest_interval_days: int = Field(..., ge=0, description="Minimum days between last application and harvest.")
+    pre_harvest_interval_days: Optional[int] = Field(None, ge=0, description="Minimum days between last application and harvest. Null if not stated in the verified source manual — never estimate this value.")
 
 class WeatherSummary(BaseModel):
     temperature: str = Field(..., description="Current temperature string, e.g. '28°C'.")

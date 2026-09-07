@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 _MODEL = getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash")
 _client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-_BASE_PROMPT = """You are Agrosphere's Expert Agricultural Vision AI.
+_BASE_PROMPT = """You are Agrosphere's Expert Agricultural Vision AI.IMPORTANT: For pre_harvest_interval_days, only output a value if the Extension Context explicitly states it. If it is not mentioned, output null. Do not estimate, infer, or use general knowledge for this field — an incorrect pre-harvest interval can cause real crop or food-safety harm.
 Analyze the image and return a JSON object.
 
 Based on the provided Extension Context, recommend verified treatments.
@@ -31,7 +31,7 @@ JSON format must match exactly:
       "dosage": "<string>",
       "unit": "<string>",
       "max_frequency": "<string>",
-      "pre_harvest_interval_days": <int>
+            "pre_harvest_interval_days": <int or null — null if the Extension Context does not explicitly state a pre-harvest interval; never estimate or guess this value>
     }
   ],
   "organic_recommendations": ["<string>"],
@@ -41,7 +41,7 @@ JSON format must match exactly:
 }
 """
 
-_BASE_PROMPT_TA = """நீங்கள் Agrosphere-இன் நிபுணர் வேளாண் பார்வை AI.
+_BASE_PROMPT_TA = """நீங்கள் Agrosphere-இன் நிபுணர் வேளாண் பார்வை AI.IMPORTANT: For pre_harvest_interval_days, only output a value if the Extension Context explicitly states it. If it is not mentioned, output null. Do not estimate, infer, or use general knowledge for this field — an incorrect pre-harvest interval can cause real crop or food-safety harm.
 படத்தை ஆய்வு செய்து JSON-ஐ திருப்பி அளிக்கவும்.
 
 JSON format:
@@ -55,7 +55,7 @@ JSON format:
       "dosage": "<string>",
       "unit": "<string>",
       "max_frequency": "<string>",
-      "pre_harvest_interval_days": <int>
+            "pre_harvest_interval_days": <int or null — null if the Extension Context does not explicitly state a pre-harvest interval; never estimate or guess this value>
     }
   ],
   "organic_recommendations": ["<string>"],
@@ -76,7 +76,7 @@ async def apply_guardrail(
 ) -> VerifiedDiagnosticResponse:
     
     # 1. Retrieve extension chunks from ChromaDB
-    context = query_extension_context(crop_type)
+    context = query_extension_context(crop_type, farmer_comment=farmer_comment)
     
     # 2. Inject context and target language into Gemini prompt
     system_prompt = _BASE_PROMPT_TA if language.lower() == 'ta' else _BASE_PROMPT
