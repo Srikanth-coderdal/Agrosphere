@@ -1,0 +1,27 @@
+﻿[
+  {
+    "question": "What is the recommended spray and dosage for early blight in tomatoes?",
+    "ground_truth": "Spray Copper oxychloride at 2.5 g/lit at 15-day intervals for early blight (Alternaria solani) in tomatoes.",
+    "reference_contexts": ["Tomato Early Blight Alternaria solani copper oxychloride 2.5 g/lit 15 days"]
+  },
+  {
+    "question": "Tomato yellowing and leaf curl control",
+    "ground_truth": "Remove yellowing leaves and manage insect vectors causing virus transmission in tomato crops.",
+    "reference_contexts": ["Tomato leaf curl virus symptoms yellowing management"]
+  },
+  {
+    "question": "What chemical treatment is used for powdery mildew in roses?",
+    "ground_truth": "Spray Wettable Sulphur or systemic fungicides to manage powdery mildew on roses.",
+    "reference_contexts": ["Rose Powdery Mildew management spray wettable sulphur"]
+  },
+  {
+    "question": "How to control banana moko wilt disease?",
+    "ground_truth": "Use disease-free planting material and field sanitation to control Ralstonia solanacearum in banana.",
+    "reference_contexts": ["Banana Moko Wilt Ralstonia solanacearum field sanitation"]
+  },
+  {
+    "question": "What is the dosage of copper oxychloride for brinjal fruit rot?",
+    "ground_truth": "Apply Copper oxychloride at 2.5 g/lit as a foliar spray for brinjal fruit rot.",
+    "reference_contexts": ["Brinjal fruit rot copper oxychloride 2.5 g/lit"]
+  }
+]

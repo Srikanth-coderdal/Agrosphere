@@ -1,10 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getPendingScans, deleteScan } from '@/lib/offline/db';
-import { syncQueuedScans, registerOnlineSyncListener } from '@/lib/offline/syncManager';
-import { flushQueue } from '@/lib/syncManager';
+import {
+  getQueuedScans,
+  removeQueuedScan,
+  flushQueue,
+  registerOnlineSyncListener,
+  OFFLINE_QUEUE_EVENT,
+} from '@/lib/syncManager';
 
 /**
- * React hook that exposes offline-sync state and controls to UI components.
+ * React hook that exposes offline-sync state and controls to UI components,
+ * backed by the unified IndexedDB store (AgroSphereOffline / scans).
  */
 export interface OfflineSyncState {
   isOnline: boolean;
@@ -15,7 +20,7 @@ export interface OfflineSyncState {
 
 export interface OfflineSyncActions {
   triggerSync: () => Promise<void>;
-  deleteScan: (id: string) => Promise<void>;
+  deleteScan: (id: number | string) => Promise<void>;
   refreshCount: () => Promise<void>;
 }
 
@@ -31,10 +36,10 @@ export function useOfflineSync(): UseOfflineSyncReturn {
     null
   );
 
-  // ── Helper: fetch current pending count ──────────────────────────
+  // ── Helper: fetch current pending count from AgroSphereOffline / scans ──
   const refreshCount = useCallback(async () => {
     try {
-      const scans = await getPendingScans();
+      const scans = await getQueuedScans();
       setPendingCount(scans.length);
     } catch (err) {
       console.error('[useOfflineSync] Failed to count pending scans:', err);
@@ -42,9 +47,9 @@ export function useOfflineSync(): UseOfflineSyncReturn {
   }, []);
 
   // ── Helper: delete a scan (useful for UI "discard" buttons) ──────
-  const handleDeleteScan = useCallback(async (id: string) => {
+  const handleDeleteScan = useCallback(async (id: number | string) => {
     try {
-      await deleteScan(id);
+      await removeQueuedScan(Number(id));
       await refreshCount();
     } catch (err) {
       console.error('[useOfflineSync] Failed to delete scan:', err);
@@ -68,11 +73,10 @@ export function useOfflineSync(): UseOfflineSyncReturn {
     }
   }, [isSyncing, refreshCount]);
 
-  // ── Network status listeners ──────────────────────────────────────
+  // ── Network & queue-change listeners ──────────────────────────────
   useEffect(() => {
     const goOnline = () => {
       setIsOnline(true);
-      // Trigger sync shortly after coming back online.
       setTimeout(() => {
         void flushQueue().then(() => refreshCount());
       }, 500);
@@ -80,19 +84,23 @@ export function useOfflineSync(): UseOfflineSyncReturn {
 
     const goOffline = () => setIsOnline(false);
 
+    const onQueueChanged = () => {
+      void refreshCount();
+    };
+
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
+    window.addEventListener(OFFLINE_QUEUE_EVENT, onQueueChanged);
 
     return () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
+      window.removeEventListener(OFFLINE_QUEUE_EVENT, onQueueChanged);
     };
-  }, []);
+  }, [refreshCount]);
 
   // ── Register background sync listener (one-time) ──────────────────
   useEffect(() => {
-    // Using the db-level `online` listener as well, for redundancy with
-    // React's own network listener.
     const cleanup = registerOnlineSyncListener();
     return cleanup;
   }, []);

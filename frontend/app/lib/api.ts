@@ -31,16 +31,55 @@ export interface ScanResponse {
   disclaimer: string;
   is_verified: boolean;
   weather_summary?: WeatherSummary | null;
+  stored_upload_id?: string | null;
 }
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("agrosphere_token");
+  } catch {
+    return null;
+  }
+}
+
+export const KISAN_CALL_CENTRE_NUMBER = "1800-180-1551";
+
+export class ScanApiError extends Error {
+  status?: number;
+  isRefusal: boolean;
+  isNetworkError: boolean;
+  refusalReason?: string;
+  topRelevanceScore?: number;
+
+  constructor(
+    message: string,
+    options?: {
+      status?: number;
+      isRefusal?: boolean;
+      isNetworkError?: boolean;
+      refusalReason?: string;
+      topRelevanceScore?: number;
+    }
+  ) {
+    super(message);
+    this.name = "ScanApiError";
+    this.status = options?.status;
+    this.isRefusal = options?.isRefusal ?? false;
+    this.isNetworkError = options?.isNetworkError ?? false;
+    this.refusalReason = options?.refusalReason;
+    this.topRelevanceScore = options?.topRelevanceScore;
+  }
+}
+
 /**
  * Sends a crop image (and optional farmer comment) to the FastAPI
  * POST /api/scan endpoint and returns structured diagnostic data.
  *
- * @throws {Error} with a human-readable message on HTTP or network failure.
+ * @throws {ScanApiError} with a human-readable message on HTTP or network failure.
  */
 export async function scanCropImage(
   file: File,
@@ -49,7 +88,9 @@ export async function scanCropImage(
   longitude?: number,
   farmerComment?: string,
   language?: LanguageCode,
-  operationalContext?: string
+  operationalContext?: string,
+  token?: string | null,
+  consentToStore: boolean = false
 ): Promise<ScanResponse> {
   const form = new FormData();
   form.append("image", file);
@@ -64,47 +105,175 @@ export async function scanCropImage(
     form.append("operational_context", operationalContext.trim());
     form.append("context_mode", operationalContext.trim());
   }
+  form.append("consent_to_store", consentToStore ? "true" : "false");
+
+  const authToken = token ?? getStoredToken();
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE}/api/scan`, {
       method: "POST",
+      headers,
       body: form,
     });
   } catch {
-    throw new Error(
-      "Unable to reach the Agrosphere server. Please check that the backend is running and try again."
+    throw new ScanApiError(
+      "Unable to reach the Agrosphere server. Please check that the backend is running and try again.",
+      { isNetworkError: true }
     );
   }
 
   if (!response.ok) {
-    // Attempt to extract FastAPI's structured error detail
+    // Attempt to extract FastAPI's structured error detail (especially 422 detail.reason)
     let detail: string | undefined;
+    let isRefusal = false;
+    let refusalReason: string | undefined;
+    let topRelevanceScore: number | undefined;
+
     try {
       const errBody = await response.json();
-      detail =
-        typeof errBody.detail === "string"
-          ? errBody.detail
-          : JSON.stringify(errBody.detail);
+      const rawDetail = errBody?.detail;
+
+      if (typeof rawDetail === "string") {
+        detail = rawDetail;
+      } else if (rawDetail && typeof rawDetail === "object" && !Array.isArray(rawDetail)) {
+        if (typeof rawDetail.reason === "string") {
+          isRefusal = Boolean(rawDetail.is_refusal ?? true);
+          refusalReason = rawDetail.reason;
+          topRelevanceScore =
+            typeof rawDetail.top_relevance_score === "number"
+              ? rawDetail.top_relevance_score
+              : undefined;
+          detail = rawDetail.reason.includes(KISAN_CALL_CENTRE_NUMBER)
+            ? rawDetail.reason
+            : `${rawDetail.reason} For immediate expert assistance, please call the Kisan Call Centre at ${KISAN_CALL_CENTRE_NUMBER} (Toll-Free) or contact your local KVK.`;
+        } else {
+          detail = JSON.stringify(rawDetail);
+        }
+      } else if (Array.isArray(rawDetail)) {
+        detail = rawDetail
+          .map((item: { msg?: string }) => item?.msg ?? JSON.stringify(item))
+          .join("; ");
+      }
     } catch {
       // Ignore JSON parse failure — fall through to status-based messages
     }
 
     switch (response.status) {
       case 400:
-        throw new Error(detail ?? "Unsupported image format. Please upload a JPG, PNG, or WebP file.");
+        throw new ScanApiError(
+          detail ?? "Unsupported or corrupted image file. Please upload a valid JPG, PNG, or WebP file.",
+          { status: 400 }
+        );
+      case 401:
+        throw new ScanApiError(
+          detail ?? "Authentication required. Please sign in and try again.",
+          { status: 401 }
+        );
+      case 413:
+        throw new ScanApiError(
+          detail ?? "Image file exceeds the maximum allowed upload size of 5 MB.",
+          { status: 413 }
+        );
       case 422:
-        throw new Error(detail ?? "Invalid request data. Please check your file and try again.");
+        throw new ScanApiError(
+          detail ??
+            `Unable to verify diagnosis from our agronomic manual. Please call the Kisan Call Centre at ${KISAN_CALL_CENTRE_NUMBER} (Toll-Free).`,
+          {
+            status: 422,
+            isRefusal,
+            refusalReason:
+              refusalReason ??
+              detail ??
+              "No sufficiently relevant agronomic context found for this query.",
+            topRelevanceScore,
+          }
+        );
       case 500:
-        throw new Error(detail ?? "Internal server error. Please try again in a moment.");
+        throw new ScanApiError(
+          detail ?? "Internal server error. Please try again in a moment.",
+          { status: 500 }
+        );
       case 502:
-        throw new Error(detail ?? "AI service is temporarily unavailable. Please try again shortly.");
+      case 503:
+        throw new ScanApiError(
+          detail ?? "AI service is temporarily unavailable. Please try again shortly.",
+          { status: response.status }
+        );
       default:
-        throw new Error(detail ?? `Unexpected error (HTTP ${response.status}). Please try again.`);
+        throw new ScanApiError(
+          detail ?? `Unexpected error (HTTP ${response.status}). Please try again.`,
+          { status: response.status }
+        );
     }
   }
 
   return response.json() as Promise<ScanResponse>;
+}
+
+/**
+ * Deletes a previously consented and stored scan image by upload ID.
+ * DELETE /api/scan/uploads/{uploadId}
+ */
+export async function deleteStoredUpload(
+  uploadId: string,
+  token?: string | null
+): Promise<{ status: string; upload_id: string; message: string }> {
+  const authToken = token ?? getStoredToken();
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(`${API_BASE}/api/scan/uploads/${encodeURIComponent(uploadId)}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const errBody = await response.json();
+      detail = typeof errBody.detail === "string" ? errBody.detail : JSON.stringify(errBody.detail);
+    } catch { /* ignore */ }
+    throw new Error(detail ?? "Failed to delete stored scan image.");
+  }
+
+  return response.json();
+}
+
+/**
+ * Deletes all consented scan images for the authenticated user.
+ * DELETE /api/scan/uploads
+ */
+export async function deleteAllStoredUploads(
+  token?: string | null
+): Promise<{ status: string; deleted_count: number; message: string }> {
+  const authToken = token ?? getStoredToken();
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(`${API_BASE}/api/scan/uploads`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const errBody = await response.json();
+      detail = typeof errBody.detail === "string" ? errBody.detail : JSON.stringify(errBody.detail);
+    } catch { /* ignore */ }
+    throw new Error(detail ?? "Failed to delete stored scan images.");
+  }
+
+  return response.json();
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -143,13 +312,20 @@ export interface IrrigationResponse {
  */
 export async function calculateIrrigation(
   data: IrrigationRequest,
-  language?: LanguageCode
+  language?: LanguageCode,
+  token?: string | null
 ): Promise<IrrigationResponse> {
+  const authToken = token ?? getStoredToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE}/api/irrigation/calculate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ ...data, language: language ?? "en" }),
     });
   } catch {
@@ -171,6 +347,8 @@ export async function calculateIrrigation(
     }
 
     switch (response.status) {
+      case 401:
+        throw new Error(detail ?? "Authentication required. Please log in again.");
       case 422:
         throw new Error(detail ?? "Invalid input values. Please review the form and try again.");
       case 500:
@@ -191,7 +369,7 @@ export async function calculateIrrigation(
 
 /**
  * Generic authenticated JSON POST helper.
- * Attaches `Authorization: Bearer <token>` when a token is provided.
+ * Attaches `Authorization: Bearer <token>` when a token is provided or stored.
  * @throws {Error} with a human-readable message on HTTP/network failure.
  */
 async function jsonPost<T>(
@@ -202,7 +380,8 @@ async function jsonPost<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const authToken = token ?? getStoredToken();
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
   let response: Response;
   try {
@@ -230,6 +409,7 @@ async function jsonPost<T>(
       case 401: throw new Error(detail ?? "Invalid credentials. Please try again.");
       case 409: throw new Error(detail ?? "An account with this email already exists.");
       case 422: throw new Error(detail ?? "Validation error. Please check your input.");
+      case 429: throw new Error(detail ?? "Too many attempts. Please wait and try again.");
       case 500: throw new Error(detail ?? "Internal server error. Please try again.");
       case 502: throw new Error(detail ?? "AI service temporarily unavailable. Please retry.");
       default:  throw new Error(detail ?? `Unexpected error (HTTP ${response.status}).`);
@@ -328,14 +508,19 @@ export async function fetchCurrentUser(token: string): Promise<UserResponse> {
 }
 
 /**
- * Log out the current user session and clear backend cookies.
+ * Log out the current user session, revoke the JWT in the backend denylist, and clear cookies.
  * POST /api/v1/auth/logout
  */
-export async function logoutUser(): Promise<{ message: string }> {
+export async function logoutUser(token?: string | null): Promise<{ message: string }> {
   try {
+    const authToken = token ?? getStoredToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
     const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
     });
     if (response.ok) {
       return response.json();

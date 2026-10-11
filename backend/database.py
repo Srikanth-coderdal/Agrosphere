@@ -1,10 +1,15 @@
 """
 SQLite database connection using SQLAlchemy.
 """
+import os
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./agrosphere.db"
+# Always use backend/agrosphere.db, whatever folder the server is started from.
+_DEFAULT_DB = Path(__file__).resolve().parent / "agrosphere.db"
+DATABASE_URL = os.environ.get("AGROSPHERE_DB_URL", f"sqlite:///{_DEFAULT_DB.as_posix()}")
 
 engine = create_engine(
     DATABASE_URL,

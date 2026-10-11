@@ -1,0 +1,26 @@
+[
+  {
+    "_comment": "TEMPLATE ENTRY — replace question/ground_truth/reference_contexts with hand-verified content from TNAU Major Diseases of Horticultural Crops Book.pdf. Do not fill these with LLM-generated content; that defeats the purpose of a golden set.",
+    "question": "REPLACE_WITH_REAL_FARMER_QUESTION",
+    "ground_truth": "REPLACE_WITH_VERIFIED_TNAU_TEXT",
+    "reference_contexts": [
+      "REPLACE_WITH_EXACT_CHUNK_TEXT_FROM_PDF"
+    ]
+  },
+  {
+    "_comment": "Example of a SYMPTOM question (lower safety risk than dosage questions — good place to start filling this out) — content below is still a placeholder, not verified.",
+    "question": "REPLACE_WITH_REAL_FARMER_QUESTION",
+    "ground_truth": "REPLACE_WITH_VERIFIED_TNAU_TEXT",
+    "reference_contexts": [
+      "REPLACE_WITH_EXACT_CHUNK_TEXT_FROM_PDF"
+    ]
+  },
+  {
+    "_comment": "Example of a DOSAGE question — highest safety priority to get right, and highest priority to have a second human verify against the source page/scan, not just the extracted text.",
+    "question": "REPLACE_WITH_REAL_FARMER_QUESTION",
+    "ground_truth": "REPLACE_WITH_VERIFIED_TNAU_TEXT",
+    "reference_contexts": [
+      "REPLACE_WITH_EXACT_CHUNK_TEXT_FROM_PDF"
+    ]
+  }
+]

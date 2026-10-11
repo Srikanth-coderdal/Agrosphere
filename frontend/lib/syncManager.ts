@@ -39,8 +39,16 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
+export const OFFLINE_QUEUE_EVENT = "agrosphere:offline-queue-updated";
+
+function notifyQueueChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_EVENT));
+  }
+}
+
 /**
- * Stores a pending scan request payload into IndexedDB.
+ * Stores a pending scan request payload into IndexedDB (AgroSphereOffline / scans).
  */
 export async function queueOfflineScan(payload: Record<string, unknown>): Promise<void> {
   const db = await openDatabase();
@@ -53,7 +61,10 @@ export async function queueOfflineScan(payload: Record<string, unknown>): Promis
     };
     const req = store.add(item);
 
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => {
+      notifyQueueChanged();
+      resolve();
+    };
     req.onerror = () => reject(req.error || new Error("Failed to queue offline scan"));
   });
 }
@@ -96,7 +107,10 @@ export async function removeQueuedScan(id: number): Promise<void> {
     const store = tx.objectStore(STORE_NAME);
     const req = store.delete(id);
 
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => {
+      notifyQueueChanged();
+      resolve();
+    };
     req.onerror = () => reject(req.error || new Error(`Failed to remove scan with id ${id}`));
   });
 }
@@ -117,6 +131,7 @@ export async function flushScanQueue(sendApiCallback: (payload: any) => Promise<
       // Keep in queue on error to retry next time
     }
   }
+  notifyQueueChanged();
 }
 
 /**
@@ -159,9 +174,16 @@ export async function flushQueue(): Promise<{ success: number; failed: number }>
         formData.append("operational_context", String(opContext));
       }
 
+      const headers: Record<string, string> = {};
+      if (typeof window !== "undefined") {
+        const token = localStorage.getItem("agrosphere_token");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const res = await fetch(`${apiBase}/api/scan`, {
         method: "POST",
+        headers,
         body: formData,
       });
       if (res.ok) {
@@ -176,4 +198,20 @@ export async function flushQueue(): Promise<{ success: number; failed: number }>
     }
   });
   return { success, failed };
+}
+
+/**
+ * Attaches an `online` listener to trigger sync when connectivity returns.
+ */
+export function registerOnlineSyncListener(): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => {
+    setTimeout(() => {
+      void flushQueue();
+    }, 500);
+  };
+  window.addEventListener("online", handler);
+  return () => {
+    window.removeEventListener("online", handler);
+  };
 }

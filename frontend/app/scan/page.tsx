@@ -5,8 +5,40 @@ import ImageUploader from "../components/ImageUploader";
 import ProtectedRoute from "../components/ProtectedRoute";
 import useProfileStore from "@/store/useProfileStore";
 import { getMessages } from "../lib/i18n";
-import { scanCropImage, ScanResponse, SafeDosage } from "@/app/lib/api";
+import {
+  scanCropImage,
+  deleteStoredUpload,
+  deleteAllStoredUploads,
+  ScanResponse,
+  SafeDosage,
+  ScanApiError,
+  KISAN_CALL_CENTRE_NUMBER,
+} from "@/app/lib/api";
 import { queueOfflineScan } from "@/lib/syncManager";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+
+/* ── Crops present in the TNAU horticultural corpus + "Not sure" ─────── */
+const CORPUS_CROP_OPTIONS = [
+  { value: "Tomato", label: "Tomato (தக்காளி)" },
+  { value: "Chillies", label: "Chillies (மிளகாய்)" },
+  { value: "Brinjal", label: "Brinjal / Eggplant (கத்திரிக்காய்)" },
+  { value: "Onion", label: "Onion (வெங்காயம்)" },
+  { value: "Bhendi", label: "Bhendi / Okra (வெண்டைக்காய்)" },
+  { value: "Gourds", label: "Gourds (சுரைக்காய் / பாகற்காய்)" },
+  { value: "Water Melon", label: "Watermelon (தர்பூசணி)" },
+  { value: "Mango", label: "Mango (மாம்பழம்)" },
+  { value: "Banana", label: "Banana (வாழை)" },
+  { value: "Turmeric", label: "Turmeric (மஞ்சள்)" },
+  { value: "Pepper", label: "Black Pepper (மிளகு)" },
+  { value: "Rose", label: "Rose (ரோஜா)" },
+  { value: "Jasmine", label: "Jasmine (மல்லிகை)" },
+  { value: "Chrysanthemum", label: "Chrysanthemum (சாமந்தி)" },
+  { value: "Crossandra", label: "Crossandra (கனகாம்பரம்)" },
+  { value: "Marigold", label: "Marigold (செண்டுமல்லி)" },
+  { value: "Tuberose", label: "Tuberose (சம்பங்கி)" },
+  { value: "Carnation", label: "Carnation (கார்னேஷன்)" },
+  { value: "Not sure", label: "Not sure — Auto-detect from image" },
+] as const;
 
 /* ── Local display type (confidence_score normalised to 0–100) ───────── */
 type HealthStatus =
@@ -31,6 +63,7 @@ interface DisplayResult {
     rain_chance: string;
     spray_advisory: string;
   } | null;
+  stored_upload_id?: string | null;
 }
 
 /** Convert a raw API ScanResponse into the display format used by this page. */
@@ -48,6 +81,7 @@ function toDisplayResult(raw: ScanResponse): DisplayResult {
     disclaimer: raw.disclaimer,
     is_verified: raw.is_verified,
     weather_summary: raw.weather_summary,
+    stored_upload_id: raw.stored_upload_id ?? null,
   };
 }
 
@@ -134,14 +168,19 @@ function RemedyCard({ icon, title, items, accentColor = "var(--primary)" }: Reme
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function ScanPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [cropType, setCropType] = useState<string>("Tomato");
   const [farmerComment, setFarmerComment] = useState("");
   const [geoLat, setGeoLat] = useState<number | undefined>(undefined);
   const [geoLng, setGeoLng] = useState<number | undefined>(undefined);
+  const [consentToStore, setConsentToStore] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeletingUploads, setIsDeletingUploads] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refusalReason, setRefusalReason] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<DisplayResult | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { language, profileMode } = useProfileStore();
+  const { pendingCount, isOnline, isSyncing, triggerSync, refreshCount } = useOfflineSync();
   const msg = getMessages(language);
 
   /* ── Uploader callback ── */
@@ -152,7 +191,33 @@ export default function ScanPage() {
     setGeoLng(longitude);
     if (scanResult) setScanResult(null);
     if (error) setError(null);
+    if (refusalReason) setRefusalReason(null);
     if (successMessage) setSuccessMessage(null);
+  };
+
+  /* ── Delete stored upload(s) handler ── */
+  const handleDeleteStoredUpload = async (uploadId?: string | null) => {
+    setIsDeletingUploads(true);
+    setError(null);
+    try {
+      if (uploadId) {
+        await deleteStoredUpload(uploadId);
+        if (scanResult) {
+          setScanResult({ ...scanResult, stored_upload_id: null });
+        }
+        setSuccessMessage("🗑️ Stored scan image permanently deleted from the server.");
+      } else {
+        const res = await deleteAllStoredUploads();
+        if (scanResult) {
+          setScanResult({ ...scanResult, stored_upload_id: null });
+        }
+        setSuccessMessage(`🗑️ ${res.message}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete stored scan data.");
+    } finally {
+      setIsDeletingUploads(false);
+    }
   };
 
   /* ── Live scan handler ── */
@@ -162,6 +227,7 @@ export default function ScanPage() {
       return;
     }
     setError(null);
+    setRefusalReason(null);
     setSuccessMessage(null);
     setScanResult(null);
     setIsLoading(true);
@@ -170,7 +236,7 @@ export default function ScanPage() {
     const payload = {
       image: selectedFile,
       imageBlob: selectedFile,
-      cropType: "General",
+      cropType: cropType,
       latitude: geoLat,
       longitude: geoLng,
       farmerComment: farmerComment,
@@ -181,6 +247,7 @@ export default function ScanPage() {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
         await queueOfflineScan(payload);
+        await refreshCount();
         setSuccessMessage("📡 You are offline. Scan saved to queue and will auto-sync when connected.");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to queue offline scan.");
@@ -193,19 +260,32 @@ export default function ScanPage() {
     try {
       const raw = await scanCropImage(
         selectedFile,
-        "General",
+        cropType,
         geoLat,
         geoLng,
         farmerComment,
         language,
-        operationalContext
+        operationalContext,
+        undefined,
+        consentToStore
       );
       setScanResult(toDisplayResult(raw));
     } catch (err) {
-      try {
-        await queueOfflineScan(payload);
-        setSuccessMessage("📡 You are offline. Scan saved to queue and will auto-sync when connected.");
-      } catch (queueErr) {
+      if (err instanceof ScanApiError && err.isNetworkError) {
+        try {
+          await queueOfflineScan(payload);
+          await refreshCount();
+          setSuccessMessage("📡 You are offline. Scan saved to queue and will auto-sync when connected.");
+        } catch {
+          setError(err.message);
+        }
+      } else if (err instanceof ScanApiError && (err.isRefusal || err.status === 422)) {
+        setRefusalReason(
+          err.refusalReason ??
+            err.message ??
+            "No sufficiently relevant agronomic context found for this query."
+        );
+      } else {
         setError(
           err instanceof Error
             ? err.message
@@ -222,23 +302,156 @@ export default function ScanPage() {
   return (
     <ProtectedRoute>
       <div className="flex flex-col gap-10">
-      {/* ── Page header ── */}
-      <section className="flex flex-col gap-2">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: "var(--primary)" }}>
-          🔍 {msg.scan.title}
-        </h1>
-        <p className="max-w-2xl text-base leading-relaxed" style={{ color: "var(--foreground)", opacity: 0.65 }}>
-          Upload a clear photo of a leaf, plant part, or any farm subject. Our AI analyzes
-          disease &amp; pests, beneficial ecology, physical damage, and environmental hazards —
-          then suggests a practical action plan.
-        </p>
+      {/* ── Page header + Offline Sync Queue Badge ── */}
+      <section className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: "var(--primary)" }}>
+            🔍 {msg.scan.title}
+          </h1>
+          <p className="max-w-2xl text-base leading-relaxed" style={{ color: "var(--foreground)", opacity: 0.65 }}>
+            Upload a clear photo of a leaf, plant part, or any farm subject. Our AI analyzes
+            disease &amp; pests, beneficial ecology, physical damage, and environmental hazards —
+            then suggests a practical action plan.
+          </p>
+        </div>
+
+        {/* ── Visible Offline Sync Badge ("N scans waiting to sync") ── */}
+        <div
+          id="offline-sync-badge"
+          role="status"
+          aria-live="polite"
+          className={`flex items-center gap-2.5 self-start rounded-2xl border px-4 py-2.5 text-xs font-bold shadow-xs transition-colors ${
+            pendingCount > 0
+              ? "border-amber-300 bg-amber-50 text-amber-900"
+              : "border-emerald-200 bg-emerald-50/70 text-emerald-800"
+          }`}
+        >
+          <span aria-hidden="true">{isOnline ? "📡" : "📴"}</span>
+          <span>{pendingCount} scans waiting to sync</span>
+          {pendingCount > 0 && isOnline && (
+            <button
+              type="button"
+              onClick={() => void triggerSync()}
+              disabled={isSyncing}
+              className="ml-1 rounded-lg bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+            >
+              {isSyncing ? "Syncing…" : "Sync now"}
+            </button>
+          )}
+        </div>
       </section>
 
       {/* ── Main grid ── */}
       <div className="grid gap-8 lg:grid-cols-2">
-        {/* ── Left: Upload + action ── */}
+        {/* ── Left: Crop Selector + Upload + action ── */}
         <section className="flex flex-col gap-5">
+          {/* ── Crop Selector Dropdown ── */}
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="crop-selector"
+              className="text-sm font-semibold"
+              style={{ color: "var(--foreground)" }}
+            >
+              Select Crop{" "}
+              <span className="font-normal opacity-60">
+                (Choose &ldquo;Not sure&rdquo; to auto-detect from image)
+              </span>
+            </label>
+            <select
+              id="crop-selector"
+              value={cropType}
+              onChange={(e) => {
+                setCropType(e.target.value);
+                if (error) setError(null);
+                if (refusalReason) setRefusalReason(null);
+              }}
+              disabled={isLoading}
+              className="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-xs outline-none transition-colors focus:border-emerald-500 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {CORPUS_CROP_OPTIONS.map((crop) => (
+                <option key={crop.value} value={crop.value}>
+                  {crop.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <ImageUploader onSelect={handleSelect} disabled={isLoading} />
+
+          {/* ── Data Privacy: Explicit Opt-In Storage Consent & On-Demand Deletion ── */}
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 text-xs text-slate-700">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                id="consent-to-store"
+                type="checkbox"
+                checked={consentToStore}
+                onChange={(e) => setConsentToStore(e.target.checked)}
+                disabled={isLoading}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-emerald-600 cursor-pointer"
+              />
+              <span className="leading-relaxed">
+                <strong className="text-slate-900">Optional Data Consent:</strong> Allow AgroSphere to retain a
+                sanitized, metadata-stripped copy of this crop image to improve disease detection. By default,
+                uploaded images are processed in-memory only and never saved to disk.
+              </span>
+            </label>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-2">
+              <span className="text-[11px] text-slate-500">
+                🔒 EXIF/GPS metadata is stripped server-side before analysis.
+              </span>
+              <div className="flex items-center gap-2">
+                {scanResult?.stored_upload_id && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteStoredUpload(scanResult.stored_upload_id)}
+                    disabled={isDeletingUploads}
+                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 cursor-pointer"
+                  >
+                    Delete This Stored Image
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteStoredUpload(null)}
+                  disabled={isDeletingUploads}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+                >
+                  {isDeletingUploads ? "Deleting…" : "Delete All My Stored Images"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Structured 422 Refusal Alert with Kisan Call Centre Fallback */}
+          {refusalReason && (
+            <div
+              role="alert"
+              className="flex flex-col gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 shadow-xs"
+            >
+              <div className="flex items-center gap-2 font-bold text-amber-900">
+                <span aria-hidden="true">🛡️</span>
+                <span>Safety Guardrail — Unable to Verify Diagnosis</span>
+              </div>
+              <p className="leading-relaxed font-medium text-amber-900">
+                {refusalReason}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-800">
+                <span>
+                  📞 Kisan Call Centre (Toll-Free):{" "}
+                  <a
+                    href={`tel:${KISAN_CALL_CENTRE_NUMBER}`}
+                    className="font-extrabold text-emerald-700 underline"
+                  >
+                    {KISAN_CALL_CENTRE_NUMBER}
+                  </a>
+                </span>
+                <span className="text-slate-500">
+                  Or consult your local Krishi Vigyan Kendra (KVK)
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Error */}
           {error && (

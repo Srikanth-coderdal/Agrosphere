@@ -31,3 +31,11 @@ class VerifiedDiagnosticResponse(BaseModel):
     disclaimer: str = Field(..., description="Safety disclaimer.")
     is_verified: bool = Field(..., description="True if verified.")
     weather_summary: Optional[WeatherSummary] = Field(None, description="Weather & spray advisory for the scan location.")
+    citations: List[str] = Field(
+        default_factory=list,
+        description="Chunk IDs from retrieved TNAU context supporting claims in this response."
+    )
+    stored_upload_id: Optional[str] = Field(
+        None,
+        description="Generated UUID of the stored sanitized image if explicit consent_to_store=True was given; None when not retained."
+    )

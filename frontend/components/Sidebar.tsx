@@ -7,6 +7,7 @@ import { useAuth } from "@/app/lib/useAuth";
 import useProfileStore from "@/store/useProfileStore";
 import ProfileSwitcher from "./ProfileSwitcher";
 import { getMessages } from "@/app/lib/i18n";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 interface SidebarProps {
   onItemClick?: () => void;
@@ -25,6 +26,7 @@ export default function Sidebar({ onItemClick, isMobile = false }: SidebarProps)
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
   const { language, toggleLanguage } = useProfileStore();
+  const { pendingCount, isOnline, isSyncing, triggerSync } = useOfflineSync();
   const msg = getMessages(language);
   const nav = msg?.nav ?? msg?.navbar;
 
@@ -50,6 +52,29 @@ export default function Sidebar({ onItemClick, isMobile = false }: SidebarProps)
 
         {/* Mode Toggle Switcher Card */}
         <ProfileSwitcher />
+
+        {/* Offline Queue Status Badge */}
+        {(pendingCount > 0 || !isOnline) && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
+          >
+            <span>
+              {isOnline ? "📡" : "📴"} {pendingCount} scans waiting to sync
+            </span>
+            {pendingCount > 0 && isOnline && (
+              <button
+                type="button"
+                onClick={() => void triggerSync()}
+                disabled={isSyncing}
+                className="rounded-md bg-amber-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+              >
+                {isSyncing ? "…" : "Sync"}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Navigation Menu */}
         <nav className="flex flex-col gap-1.5" aria-label="Main Navigation">
