@@ -27,3 +27,12 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+
+# User consented uploads (never commit user images)
+backend/data/consented_uploads/
+
+# Local databases and backups
+*.db
+*.db.bak
+*.bak
+backend/data/consented_uploads/
