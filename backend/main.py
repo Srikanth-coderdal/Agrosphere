@@ -22,6 +22,7 @@ from models.user import ConsentedUpload, User
 from routers import auth, irrigation, urban_gardening, yield_estimator
 from schemas.diagnostic import VerifiedDiagnosticResponse, WeatherSummary
 from services.auth_service import get_current_user
+from services.quota_manager import enforce_user_daily_scan_limit
 from services.rag_guardrail import apply_guardrail
 from services.upload_security import (
     MAX_UPLOAD_SIZE_BYTES,
@@ -95,6 +96,9 @@ async def scan_crop(
     # Read bounded bytes (MAX_UPLOAD_SIZE_BYTES + 1) to prevent memory exhaustion on huge uploads
     raw_bytes = await image.read(MAX_UPLOAD_SIZE_BYTES + 1)
     sanitized_bytes, sanitized_mime = validate_and_sanitize_image(raw_bytes)
+
+    # Enforce per-user daily scan limit (20 scans/user/day -> HTTP 429 with Retry-After)
+    enforce_user_daily_scan_limit(user_id=current_user.id, db=db)
 
     # Do NOT retain images by default; store ONLY when explicit user consent is given
     stored_upload_id: Optional[str] = None

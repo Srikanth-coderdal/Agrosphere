@@ -44,3 +44,32 @@ class ConsentedUpload(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class QuotaLedgerRecord(Base):
+    __tablename__ = "quota_ledger"
+
+    id: int = Column(Integer, primary_key=True, index=True)
+    bucket_type: str = Column(String, index=True, nullable=False)  # 'day' or 'minute'
+    bucket_key: str = Column(String, unique=True, index=True, nullable=False)
+    call_count: int = Column(Integer, default=0, nullable=False)
+    updated_at: datetime = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class UserScanQuota(Base):
+    __tablename__ = "user_scan_quotas"
+
+    id: int = Column(Integer, primary_key=True, index=True)
+    user_id: int = Column(Integer, index=True, nullable=False)
+    day_key: str = Column(String, index=True, nullable=False)
+    scan_count: int = Column(Integer, default=0, nullable=False)
+    updated_at: datetime = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+

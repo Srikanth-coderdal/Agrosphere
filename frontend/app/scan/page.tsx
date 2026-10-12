@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import DegradedStatusBanner from "../components/DegradedStatusBanner";
 import ImageUploader from "../components/ImageUploader";
 import ProtectedRoute from "../components/ProtectedRoute";
 import useProfileStore from "@/store/useProfileStore";
@@ -58,6 +59,10 @@ interface DisplayResult {
   preventive_measures: string[];
   disclaimer: string;
   is_verified: boolean;
+  served_by: string;
+  degraded: boolean;
+  is_refusal: boolean;
+  citations: string[];
   weather_summary?: {
     temperature: string;
     rain_chance: string;
@@ -68,9 +73,17 @@ interface DisplayResult {
 
 /** Convert a raw API ScanResponse into the display format used by this page. */
 function toDisplayResult(raw: ScanResponse): DisplayResult {
-  const isHealthy = raw.pathogen.toLowerCase().includes("healthy") || raw.pathogen.toLowerCase().includes("normal");
+  const isRefusal = Boolean(raw.is_refusal || raw.served_by === "refusal");
+  const isHealthy =
+    !isRefusal &&
+    (raw.pathogen.toLowerCase().includes("healthy") ||
+      raw.pathogen.toLowerCase().includes("normal"));
   return {
-    health_status: isHealthy ? "Normal / Healthy" : "Diseased / Infected",
+    health_status: isRefusal
+      ? "Unclear"
+      : isHealthy
+      ? "Normal / Healthy"
+      : "Diseased / Infected",
     disease_name: raw.pathogen,
     // API returns 0.0–1.0; render as 0–100
     confidence_score: Math.round(raw.confidence * 100),
@@ -80,6 +93,10 @@ function toDisplayResult(raw: ScanResponse): DisplayResult {
     preventive_measures: raw.preventive_measures || [],
     disclaimer: raw.disclaimer,
     is_verified: raw.is_verified,
+    served_by: raw.served_by ?? "gemini",
+    degraded: Boolean(raw.degraded),
+    is_refusal: isRefusal,
+    citations: raw.citations || [],
     weather_summary: raw.weather_summary,
     stored_upload_id: raw.stored_upload_id ?? null,
   };
@@ -269,7 +286,11 @@ export default function ScanPage() {
         undefined,
         consentToStore
       );
-      setScanResult(toDisplayResult(raw));
+      const display = toDisplayResult(raw);
+      setScanResult(display);
+      if (display.is_refusal) {
+        setRefusalReason(raw.verified_treatment);
+      }
     } catch (err) {
       if (err instanceof ScanApiError && err.isNetworkError) {
         try {
@@ -547,6 +568,14 @@ export default function ScanPage() {
 
           {scanResult && badge && (
             <div className="flex flex-col gap-5">
+              {/* ── Prominent Degraded Fallback Status Banner (Task 4) ── */}
+              {/* e.g. "Generated via offline extractive backup" when degraded: true */}
+              <DegradedStatusBanner
+                degraded={scanResult.degraded}
+                servedBy={scanResult.served_by}
+                language={language}
+              />
+
               {/* ── Status badge ── */}
               <div className="flex items-center justify-between rounded-2xl border px-5 py-4 shadow-sm"
                 style={{ borderColor: badge.color + "33", background: badge.bg }}>
@@ -624,7 +653,14 @@ export default function ScanPage() {
             <RemedyCard
               icon="💊"
               title="Safe Dosages"
-              items={scanResult.safe_dosages.map(d => `${d.chemical_name}: ${d.dosage} ${d.unit} (Max: ${d.max_frequency}, PHI: ${d.pre_harvest_interval_days} days)`)}
+              items={scanResult.safe_dosages.map(
+                (d) =>
+                  `${d.chemical_name}: ${d.dosage} ${d.unit} (Max: ${d.max_frequency}, PHI: ${
+                    d.pre_harvest_interval_days !== null && d.pre_harvest_interval_days !== undefined
+                      ? `${d.pre_harvest_interval_days} days`
+                      : "Not specified in manual"
+                  })`
+              )}
               accentColor="#d97706"
             />
             <RemedyCard

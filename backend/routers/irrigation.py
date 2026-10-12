@@ -14,7 +14,7 @@ async def irrigation_calculate(
 ) -> IrrigationResponse:
     """
     Accepts crop, soil, and weather inputs.
-    Returns computed water requirements and AI-generated irrigation schedule.
+    Returns 100% deterministic FAO-56 water requirements and irrigation schedule with zero LLM dependency.
     Requires authentication.
     """
     return await calculate_irrigation(req)

@@ -1,18 +1,12 @@
-import json
+"""
+Deterministic FAO-56 Smart Irrigation Service.
+Runs 100% deterministically with zero LLM dependency.
+"""
 import logging
 
-from fastapi import HTTPException
-from google import genai
-from google.genai import types
-
-from config import settings
 from schemas.irrigation import IrrigationRequest, IrrigationResponse
 
 logger = logging.getLogger(__name__)
-
-# ── Google GenAI SDK (google-genai) ───────────────────────────────────────────
-_MODEL = getattr(settings, "GEMINI_MODEL", "gemini-3.6-flash")
-_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 # ── Crop base ET (mm/day) by growth stage ─────────────────────────────────────
 # Source: FAO-56 Kc values (simplified)
@@ -31,6 +25,7 @@ _SOIL_RETENTION: dict[str, float] = {
     "loam":  0.65,
     "sandy": 0.45,
 }
+
 
 # Reference ETo (mm/day) driven by temperature (Hargreaves simplified approximation)
 def _reference_eto(temp_c: float) -> float:
@@ -77,121 +72,99 @@ def _compute_water_liters(req: IrrigationRequest) -> tuple[float, float]:
     return round(gross_water_liters, 1), round(etc, 2)
 
 
-_GEMINI_SYSTEM = """\
-You are a precision agriculture irrigation expert AI.
-Given structured crop and field data, produce a JSON object with EXACTLY these keys:
-{
-  "recommended_schedule": "<string: specific schedule e.g. 'Water 18,000 L at 06:00 AM every 2 days'>",
-  "weather_summary": "<string: 2-3 sentence summary of conditions and their irrigation impact>",
-  "actionable_tips": ["<tip 1>", "<tip 2>", "<tip 3>", "<tip 4>"]
-}
-Rules:
-- RETURN KEY METRICS FIRST: Output the recommended_schedule key containing exact volume, time, and frequency at the very top of the JSON.
-- Output ONLY the raw JSON object. No markdown, no code fences.
-- recommended_schedule must include volume, time of day, and frequency.
-- actionable_tips must have 3-5 items tailored to the inputs.
-"""
+def _build_deterministic_irrigation_advice(
+    req: IrrigationRequest,
+    water_liters: float,
+    et_mm: float,
+    et_index: str,
+) -> dict:
+    """
+    100% deterministic FAO-56 schedule, weather summary, and actionable tips.
+    Zero LLM calls.
+    """
+    lang = (req.language or "en").strip().lower()
+    temp = req.temperature_celsius if req.temperature_celsius is not None else 28.0
+    rain_prob = req.rainfall_probability_percent if req.rainfall_probability_percent is not None else 20.0
+    moisture = req.soil_moisture_percentage
+    soil_key = (req.soil_type or "loam").strip().lower()
+    crop_title = (req.crop_type or "Crop").strip().title()
+    stage_label = (req.growth_stage or "mid-stage").strip()
 
-_GEMINI_SYSTEM_TA = """\
-நீங்கள் ஒரு துல்லிய வேளாண் நீர்ப்பாசன நிபுணர் AI.
-கொடுக்கப்பட்ட பயிர் மற்றும் வயல் தரவுகளை வைத்து, கீழே உள்ள EXACT keys-களுடன் ஒரே ஒரு JSON object-ஐ திருப்புங்கள்:
-{
-  "recommended_schedule": "<string: உதாரணம் '18,000 லிட்டர் நீரை காலை 06:00 மணிக்கு ஒவ்வொரு 2 நாட்களும் பாசனம் செய்யவும்'>",
-  "weather_summary": "<string: 2–3 வாக்கியங்களில் நிலைமைகள் மற்றும் அவற்றின் நீர்ப்பாசன தாக்கம்>",
-  "actionable_tips": ["<tip 1>", "<tip 2>", "<tip 3>", "<tip 4>"]
-}
-விதிகள்:
-- RETURN KEY METRICS FIRST: recommended_schedule மதிப்பை JSON இன் தொடக்கத்திலேயே முதலில் வழங்கவும்.
-- Output ONLY raw JSON. markdown இல்லை, code fences இல்லை.
-- recommended_schedule இல் அளவு (volume), நாளின் நேரம் (time of day), மற்றும் அடுத்தடுத்து வரும் frequency இருக்க வேண்டும்.
-- actionable_tips இல் உள்ளீடுகளுக்கு ஏற்ப 3–5 குறிப்புகள் தமிழில் இருக்க வேண்டும்.
-"""
+    # Determine irrigation frequency based on soil retention & rainfall probability
+    if rain_prob >= 70:
+        freq_en = "every 2–3 days (reduce volume by 30% if rain occurs)"
+        freq_ta = "ஒவ்வொரு 2–3 நாட்களும் (மழை பெய்தால் அளவை 30% குறைக்கவும்)"
+    elif soil_key == "sandy" or temp >= 34:
+        freq_en = "daily in two split cycles (06:00 AM and 05:30 PM)"
+        freq_ta = "தினமும் இரண்டு முறை (காலை 06:00 மற்றும் மாலை 05:30)"
+    elif soil_key == "clay":
+        freq_en = "every 2 days at 06:00 AM"
+        freq_ta = "ஒவ்வொரு 2 நாட்களுக்கும் காலை 06:00 மணிக்கு"
+    else:
+        freq_en = "daily at 06:00 AM"
+        freq_ta = "தினமும் காலை 06:00 மணிக்கு"
 
-
-async def _get_gemini_advice(req: IrrigationRequest, water_liters: float, et_index: str) -> dict:
-    system_prompt = _GEMINI_SYSTEM_TA if (req.language or "").lower() == "ta" else _GEMINI_SYSTEM
-    prompt = f"""
-{system_prompt}
-
-Crop: {req.crop_type}
-Growth Stage: {req.growth_stage}
-Soil Type: {req.soil_type}
-Field Size: {req.field_size_hectares} hectares
-Current Soil Moisture: {req.soil_moisture_percentage}%
-Temperature: {req.temperature_celsius}°C
-Rainfall Probability: {req.rainfall_probability_percent}%
-Calculated Water Requirement: {water_liters:,.0f} liters/day
-Evapotranspiration Index: {et_index}
-"""
-    try:
-        response = await _client.aio.models.generate_content_stream(
-            model=_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3,
-                max_output_tokens=1024,
-            ),
+    if lang == "ta":
+        recommended_schedule = (
+            f"{water_liters:,.0f} லிட்டர் நீரை {freq_ta} பாசனம் செய்யவும்."
         )
-        full_text = ""
-        async for chunk in response:
-            full_text += chunk.text or ""
-    except Exception as exc:
-        logger.exception("Gemini irrigation advice call failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Gemini API error: {exc}") from exc
-
-    cleaned_text = full_text.strip()
-    if cleaned_text.startswith("```"):
-        # Strip leading/trailing markdown blocks safely
-        lines = cleaned_text.splitlines()
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        cleaned_text = "\n".join(lines).strip()
-
-    try:
-        return json.loads(cleaned_text)
-    except Exception as exc:
-        logger.error("Failed to parse Gemini irrigation JSON. Raw text: %s. Error: %s", full_text, exc)
-        # Return a safe, fully-compliant fallback error object
-        if (req.language or "").lower() == "ta":
-            return {
-                "recommended_schedule": f"காலை நேரத்தில் தினமும் {water_liters:,.0f} லிட்டர் நீர் பாசனம் செய்யவும்.",
-                "weather_summary": "வானிலை அளவுருக்கள் கணக்கிடப்பட்டுள்ளன. நீர் தேவை உகந்ததாக உள்ளது.",
-                "actionable_tips": [
-                    "மண்ணின் ஈரப்பதத்தை தொடர்ந்து கண்காணிக்கவும்.",
-                    "வெப்பநிலைக்கு ஏற்ப பாசன அளவை மாற்றியமைக்கவும்.",
-                    "ஆவியாதலைத் தடுக்க காலையிலேயே நீர் பாய்ச்சவும்.",
-                    "முறையான வடிகால் வசதியை உறுதி செய்யவும்."
-                ]
-            }
+        weather_summary = (
+            f"FAO-56 மாதிரியின்படி {temp:.1f}°C வெப்பநிலை மற்றும் {moisture:.0f}% மண் ஈரப்பதத்தில் "
+            f"{crop_title} ({stage_label}) பயிருக்கான ஆவிப்போக்கல் {et_index} ஆக உள்ளது. "
+            f"மழை வாய்ப்பு {rain_prob:.0f}% என்பதால் {req.field_size_hectares} ஹெக்டேர் வயலுக்கு "
+            f"தினசரி {water_liters:,.0f} லிட்டர் நீர் தேவைப்படுகிறது."
+        )
+        tips = [
+            f"ஆவியாதல் இழப்பைக் குறைக்க காலை 06:00–08:00 மணிக்குள் {water_liters:,.0f} லிட்டர் நீரைப் பாய்ச்சவும்.",
+            f"{req.soil_type.title()} மண்ணின் ஈரப்பதம் தற்போது {moisture:.0f}% ஆக உள்ளது — வேர் மண்டலத்தைத் தொடர்ந்து கண்காணிக்கவும்.",
+            (
+                f"மழை வாய்ப்பு அதிகமாக ({rain_prob:.0f}%) உள்ளதால் மழை பெய்தால் பாசனத்தை ஒத்திவைக்கவும்."
+                if rain_prob >= 50
+                else f"வெப்பநிலை ({temp:.1f}°C) அதிகமாகும் போது மண் ஈரப்பதத்தைக் காக்க கரிம மூடாக்கு (mulch) இடவும்."
+            ),
+            "வயலில் நீர் தேங்குவதைத் தடுக்க முறையான வடிகால் வசதியை உறுதி செய்யவும்.",
+        ]
         return {
-            "recommended_schedule": f"Apply {water_liters:,.0f} L per day in early morning.",
-            "weather_summary": "Standard agricultural weather parameters analyzed. Irrigation requirements calculated.",
-            "actionable_tips": [
-                "Ensure consistent monitoring of root zone moisture.",
-                "Adjust irrigation volume dynamically if temperature spikes.",
-                "Irrigate during early morning hours to minimize water evaporation.",
-                "Verify field drainage path to prevent stagnant waterlogging."
-            ]
+            "recommended_schedule": recommended_schedule,
+            "weather_summary": weather_summary,
+            "actionable_tips": tips,
         }
+
+    recommended_schedule = f"Apply {water_liters:,.0f} L {freq_en}."
+    weather_summary = (
+        f"FAO-56 evapotranspiration analysis at {temp:.1f}°C and {moisture:.0f}% soil moisture "
+        f"indicates {et_index} water demand for {crop_title} ({stage_label}). "
+        f"With {rain_prob:.0f}% rainfall probability across {req.field_size_hectares} ha of {soil_key} soil, "
+        f"net daily irrigation requirement is {water_liters:,.0f} L."
+    )
+    tips = [
+        f"Irrigate {water_liters:,.0f} L during early morning hours (06:00–08:00 AM) to minimize evaporative loss.",
+        f"Monitor root-zone moisture in {soil_key} soil (currently {moisture:.0f}%) before each watering cycle.",
+        (
+            f"Rainfall probability is {rain_prob:.0f}% — delay scheduled irrigation if natural precipitation exceeds 5 mm."
+            if rain_prob >= 50
+            else f"Apply surface mulching to conserve soil moisture at {temp:.1f}°C ambient temperature."
+        ),
+        "Ensure clear field drainage channels to prevent root-zone waterlogging and nutrient leaching.",
+    ]
+    return {
+        "recommended_schedule": recommended_schedule,
+        "weather_summary": weather_summary,
+        "actionable_tips": tips,
+    }
 
 
 async def calculate_irrigation(req: IrrigationRequest) -> IrrigationResponse:
-    """Compute water requirement and fetch AI-generated advice from Gemini."""
+    """Compute FAO-56 water requirement and deterministic irrigation schedule with zero LLM calls."""
     water_liters, et_mm = _compute_water_liters(req)
     et_index = _classify_et(et_mm)
-
-    gemini_data = await _get_gemini_advice(req, water_liters, et_index)
+    advice = _build_deterministic_irrigation_advice(req, water_liters, et_mm, et_index)
 
     return IrrigationResponse(
         water_required_liters=water_liters,
-        recommended_schedule=gemini_data.get(
-            "recommended_schedule",
-            f"Apply {water_liters:,.0f} L per day in early morning.",
-        ),
+        recommended_schedule=advice["recommended_schedule"],
         evapotranspiration_index=et_index,
-        weather_summary=gemini_data.get("weather_summary", "No weather summary available."),
-        actionable_tips=gemini_data.get("actionable_tips", []),
+        weather_summary=advice["weather_summary"],
+        actionable_tips=advice["actionable_tips"],
     )
+

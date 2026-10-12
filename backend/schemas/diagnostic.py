@@ -21,6 +21,15 @@ class WeatherSummary(BaseModel):
     rain_chance: str = Field(..., description="Rain forecast label, e.g. 'High (5.2mm)'.")
     spray_advisory: str = Field(..., description="Spray advisory based on precipitation forecast.")
 
+ServedByLayer = Literal[
+    "cache",
+    "gemini",
+    "secondary_local",
+    "extractive_rag",
+    "refusal",
+]
+
+
 class VerifiedDiagnosticResponse(BaseModel):
     pathogen: str = Field(..., description="Verified pathogen or condition label.")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Final confidence score.")
@@ -30,6 +39,18 @@ class VerifiedDiagnosticResponse(BaseModel):
     preventive_measures: List[str] = Field(default_factory=list, description="Prevention advice.")
     disclaimer: str = Field(..., description="Safety disclaimer.")
     is_verified: bool = Field(..., description="True if verified.")
+    served_by: ServedByLayer = Field(
+        default="gemini",
+        description="Layer that served this response (cache, gemini, secondary_local, extractive_rag, refusal).",
+    )
+    degraded: bool = Field(
+        default=False,
+        description="True when served by a fallback or refusal layer due to primary API unavailability or low retrieval confidence.",
+    )
+    is_refusal: bool = Field(
+        default=False,
+        description="True when Layer 4 honest refusal is returned.",
+    )
     weather_summary: Optional[WeatherSummary] = Field(None, description="Weather & spray advisory for the scan location.")
     citations: List[str] = Field(
         default_factory=list,
@@ -39,3 +60,4 @@ class VerifiedDiagnosticResponse(BaseModel):
         None,
         description="Generated UUID of the stored sanitized image if explicit consent_to_store=True was given; None when not retained."
     )
+

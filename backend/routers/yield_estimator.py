@@ -14,7 +14,7 @@ async def yield_predict(
 ) -> YieldEstimatorResponse:
     """
     Returns estimated yield in tons, confidence range, key yield drivers,
-    and optimization suggestions using crop-tailored agricultural models and Gemini AI.
+    and optimization suggestions using 100% deterministic crop-tailored agricultural models with zero LLM dependency.
     Requires authentication.
     """
     return await predict_yield(req)

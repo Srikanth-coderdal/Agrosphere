@@ -10,7 +10,7 @@ export interface SafeDosage {
   dosage: string;
   unit: string;
   max_frequency: string;
-  pre_harvest_interval_days: number;
+  pre_harvest_interval_days: number | null;
 }
 
 /** Mirrors backend/schemas/diagnostic.py -> WeatherSummary */
@@ -19,6 +19,13 @@ export interface WeatherSummary {
   rain_chance: string;
   spray_advisory: string;
 }
+
+export type ServedByLayer =
+  | "cache"
+  | "gemini"
+  | "secondary_local"
+  | "extractive_rag"
+  | "refusal";
 
 /** Mirrors backend/schemas/diagnostic.py -> VerifiedDiagnosticResponse */
 export interface ScanResponse {
@@ -30,6 +37,10 @@ export interface ScanResponse {
   preventive_measures: string[];
   disclaimer: string;
   is_verified: boolean;
+  served_by: ServedByLayer;
+  degraded: boolean;
+  is_refusal?: boolean;
+  citations?: string[];
   weather_summary?: WeatherSummary | null;
   stored_upload_id?: string | null;
 }
@@ -193,6 +204,13 @@ export async function scanCropImage(
             topRelevanceScore,
           }
         );
+      case 429: {
+        const retryAfter = response.headers.get("Retry-After");
+        const fallbackMsg = retryAfter
+          ? `Daily scan limit (20 scans/day) reached. Please retry after ${retryAfter} seconds.`
+          : "Daily scan limit of 20 scans per day reached. Please try again after the daily reset.";
+        throw new ScanApiError(detail ?? fallbackMsg, { status: 429 });
+      }
       case 500:
         throw new ScanApiError(
           detail ?? "Internal server error. Please try again in a moment.",
