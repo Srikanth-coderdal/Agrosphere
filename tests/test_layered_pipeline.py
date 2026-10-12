@@ -214,7 +214,7 @@ def test_layer1_retries_with_retry_after_header_and_succeeds(monkeypatch):
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            raise RateLimitedError("4.5")
+            raise RateLimitedError("1.5")
         if attempts == 2:
             raise RuntimeError("Transient 503 error without Retry-After")
         return SuccessResp()
@@ -237,8 +237,8 @@ def test_layer1_retries_with_retry_after_header_and_succeeds(monkeypatch):
 
     assert attempts == 3  # 1 initial + 2 retries
     assert len(sleep_delays) == 2
-    # First retry honored Retry-After: 4.5s
-    assert sleep_delays[0] == pytest.approx(4.5)
+    # First retry honored Retry-After: 1.5s
+    assert sleep_delays[0] == pytest.approx(1.5)
     # Second retry used jittered exponential backoff (0.5 * 2^1 + jitter in [0.05, 0.35])
     assert 1.05 <= sleep_delays[1] <= 1.35
     assert result.served_by == "gemini"

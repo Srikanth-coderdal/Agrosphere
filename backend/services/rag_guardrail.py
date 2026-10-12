@@ -43,6 +43,8 @@ KISAN_CALL_CENTRE_NUMBER = "1800-180-1551"
 # Layer 1 (Gemini Primary) configuration: 8–10s timeout, up to 2 retries
 GEMINI_TIMEOUT_SECONDS: float = float(getattr(settings, "GEMINI_TIMEOUT_SECONDS", 9.0))
 GEMINI_MAX_RETRIES: int = int(getattr(settings, "GEMINI_MAX_RETRIES", 2))
+MAX_SINGLE_WAIT_SECONDS: float = 3.0
+LAYER1_TOTAL_BUDGET_SECONDS: float = 12.0
 
 # Layer 2 (Ollama Low-RAM Fallback) configuration: qwen2.5-coder:1.5b, num_ctx=2048, 5s timeout
 DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:1.5b"
@@ -858,7 +860,7 @@ def _compute_backoff_delay(retry_index: int, retry_after: Optional[float]) -> fl
     jitter = random.uniform(0.05, 0.35)
     exp_backoff = (0.5 * (2 ** retry_index)) + jitter
     if retry_after is not None:
-        return max(float(retry_after), 0.0)
+        return min(max(float(retry_after), 0.0), MAX_SINGLE_WAIT_SECONDS)
     return exp_backoff
 
 
@@ -895,8 +897,14 @@ async def call_gemini_primary(
 
     last_exc: Optional[BaseException] = None
     total_attempts = 1 + effective_retries
+    started_at = asyncio.get_running_loop().time()
 
     for attempt_idx in range(total_attempts):
+        time_left = LAYER1_TOTAL_BUDGET_SECONDS - (asyncio.get_running_loop().time() - started_at)
+        if attempt_idx > 0 and time_left < 1.0:
+            logger.warning("Layer 1 time budget used up; failing over.")
+            break
+        attempt_timeout = max(1.0, min(effective_timeout, time_left))
         if attempt_idx > 0 and circuit_breaker.is_tripped():
             logger.warning("Circuit breaker tripped during retry loop; aborting remaining Gemini retries.")
             break
@@ -915,7 +923,7 @@ async def call_gemini_primary(
                         temperature=0.2,
                     ),
                 ),
-                timeout=effective_timeout,
+                timeout=attempt_timeout,
             )
             raw_text = (response.text or "").strip()
             parsed = json.loads(raw_text)
@@ -940,7 +948,12 @@ async def call_gemini_primary(
                 break
             if attempt_idx < effective_retries:
                 retry_after = _extract_retry_after(exc)
+                if retry_after is not None and retry_after > MAX_SINGLE_WAIT_SECONDS:
+                    logger.warning("Gemini asked for a long wait (%s s); failing over now.", retry_after)
+                    break
                 delay = _compute_backoff_delay(attempt_idx, retry_after)
+                if (asyncio.get_running_loop().time() - started_at) + delay >= LAYER1_TOTAL_BUDGET_SECONDS:
+                    break
                 logger.warning(
                     "Layer 1 (Gemini) attempt %d/%d failed (%s). Retrying in %.2fs (retry_after=%s)...",
                     attempt_idx + 1,
